@@ -37,7 +37,7 @@ Create the appropriate <a href="http://www.postgresql.org/docs/9.3/static/databa
 Finally, install the tables via <tt>psql</tt>:
 
 ```
-$ psql -d [database_name_goes_here] -U [authorized_user_goes_here] < processor/tables.sql
+$ psql -d [database_name_goes_here] -U [authorized_user_goes_here] < sql/tables.sql
 ```
 
 If successful, you should see:
