@@ -77,3 +77,5 @@ The log loader expects that all the folders and individual circuit log files und
 /[site id]/[YYYY]/[MM]/[DD]/[HH]/[circuit ip address].log
 ```
 
+If the log loader run is successful, the <tt>$loader_log</tt> will be empty.
+
