@@ -1,7 +1,5 @@
 -- table definitions for the Shared Solar SD Log database
 
---CREATE EXTENSION "uuid-ossp";
-
 CREATE TABLE circuit (
   pk           uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
   machine_id   varchar(18) NOT NULL,
