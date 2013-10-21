@@ -11,6 +11,8 @@ Along with parsing and type conversion functions for this data.
 
 """
 
+import sys, datetime, os
+
 MAIN_LOG = [ # header, example
     'Time Stamp',	# 20130812020002,
     'Watts', 		# 80.6,
@@ -60,6 +62,10 @@ REGR_LOG = [ # header, example
 ]
 REGR_LEN = len(REGR_LOG)
 
+FIELDS_TO_IGNORE = [18, 19] # b/c these are normalized in the db
+TIMESTAMP_FIELD  = 0
+RELAY_FIELD      = 16
+
 def parse_timestamp (ts_str):
     """Convert the ts_str string (in YYYYMMDDHHMISS format,
     e.g. 20130812020002) into a datetime.datetime object"""
@@ -104,3 +110,15 @@ def parse_field (field_data):
         return float(field_data)
     except ValueError, val_err:
         print >> sys.stderr, 'Error: could not parse', field_data, val_err
+
+def get_site_id_from_path (root_path, path):
+    """Get the site id from the first part of the path,
+    right after the root folder"""
+
+    return filter(None, path.split(root_path)[1].split(os.path.sep))[0]
+
+def reformat_ip_addr (ip_str):
+    """The IP address defined in the file name is in '127_0_0_1' format,
+    so reformat as a dot-separated string."""
+
+    return ip_str.replace('_', '.')

@@ -9,10 +9,11 @@ defined in processor.csv_format.py.
 
 """
 
-import os, sys, datetime, threading
+import os, sys, threading
 from db_utils import connect, search, insert
 from settings import DBNAME, DBUSER, PWD
-from csv_formats import MAIN_LOG, MAIN_LEN, REGR_LOG, REGR_LEN, parse_timestamp, convert_relay_closed, convert_field_name, parse_field
+from csv_formats import MAIN_LOG, MAIN_LEN, REGR_LOG, REGR_LEN, FIELDS_TO_IGNORE, TIMESTAMP_FIELD, RELAY_FIELD
+from csv_formats import parse_timestamp, convert_relay_closed, convert_field_name, parse_field, get_site_id_from_path, reformat_ip_addr
 
 def get_or_create_circuit (machine_id, site_id, ip_addr, is_main=False):
     """Lookup the machine_id, site_id and ip_addr in the circuit table
@@ -40,7 +41,7 @@ def get_or_create_circuit (machine_id, site_id, ip_addr, is_main=False):
             return get_or_create_circuit (machine_id, site_id, ip_addr)
 
 
-def parse_log_line (circuit_id, line, ignore=[18, 19]):
+def parse_log_line (circuit_id, line, ignore=FIELDS_TO_IGNORE):
     """Convert the list of data found in a single line of the csv file
     into a dict for insertion into the power_reading table"""
 
@@ -52,9 +53,9 @@ def parse_log_line (circuit_id, line, ignore=[18, 19]):
             else:
                 field = convert_field_name(MAIN_LOG[i])
 
-            if i == 0:
+            if i == TIMESTAMP_FIELD:
                 data[field] = parse_timestamp(datum)
-            elif i == 16:
+            elif i == RELAY_FIELD:
                 data[field] = convert_relay_closed(datum)
             else:
                 data[field] = parse_field(datum)
@@ -131,9 +132,7 @@ def get_log_files (root_path):
         path  = file_obj[0]
         files = file_obj[-1:][0]
         if len(files) > 0:
-            # get the site id from first part of the path after root folder
-            site_id = filter(None,
-                             path.split(root_path)[1].split(os.path.sep))[0]
+            site_id = get_site_id_from_path(root_path, path)
             if res.has_key(site_id):
                 file_data = res[site_id]
             else:
@@ -142,11 +141,9 @@ def get_log_files (root_path):
             # find each log file and its ip address from the filename
             for file_tuple in map(lambda x: os.path.splitext(x), files):
                 if file_tuple[1] == '.log':
-                    # the file name is '127_0_0_1' so reformat
-                    ip_addr = file_tuple[0].replace('_', '.') 
                     file_data.append({'path':path,
                                       'file':''.join(file_tuple),
-                                      'ip':ip_addr})
+                                      'ip':reformat_ip_addr(file_tuple[0])})
 
             if len(file_data) > 0:
                 res[site_id] = file_data
