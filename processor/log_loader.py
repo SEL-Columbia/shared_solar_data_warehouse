@@ -4,145 +4,15 @@
 A script to open, parse, and insert Shared Solar SD log file csv data
 into the database.
 
-There are two types of log files:
-
-(1) A Main Circuit log file
-    Time Stamp,
-    Watts,
-    Volts,
-    Amps,
-    Watt Hours SC20,
-    Watt Hours Today,
-    Max Watts,
-    Max Volts,
-    Max Amps,
-    Min Watts,
-    Min Volts,
-    Min Amps,
-    Power Factor,
-    Power Cycle,
-    Frequency,
-    Volt Amps,
-    Relay Not Closed,
-    Send Rate,
-    Machine ID,
-    Type
-e.g,
-    20130812020002,
-    80.6,
-    231.6,
-    0.514,
-    96163.7,
-    160.7,
-    807,
-    231.7,
-    516,
-    806,
-    231.5,
-    511,
-    60,
-    148,
-    50.0,
-    1339,
-    0,
-    3,
-    3512488618,
-    MAINS
-
-(2) A Regular Circuit log file
-    Time Stamp,
-    Watts,
-    Volts,
-    Amps,
-    Watt Hours SC20,
-    Watt Hours Today,
-    Max Watts,
-    Max Volts,
-    Max Amps,
-    Min Watts,
-    Min Volts,
-    Min Amps,
-    Power Factor,
-    Power Cycle,
-    Frequency,
-    Volt Amps,
-    Relay Not Closed,
-    Send Rate,
-    Machine ID,
-    Type,
-    Credit
-e.g.,
-    20130812020006,
-    10.6,
-    231.2,
-    0.081,
-    30905.7,
-    20.5,
-    107,
-    231.3,
-    84,
-    106,
-    231.1,
-    81,
-    37,
-    102,
-    50.0,
-    282,
-    0,
-    3,
-    337793706,
-    CIRCUIT,
-    8252.0
+There are two types of log files, a main circuit, and a regular circuit,
+defined in processor.csv_format.py.
 
 """
 
-MAIN_LOG = ['Time Stamp',
-    'Watts',
-    'Volts',
-    'Amps',
-    'Watt Hours SC20',
-    'Watt Hours Today',
-    'Max Watts',
-    'Max Volts',
-    'Max Amps',
-    'Min Watts',
-    'Min Volts',
-    'Min Amps',
-    'Power Factor',
-    'Power Cycle',
-    'Frequency',
-    'Volt Amps',
-    'Relay Not Closed',
-    'Send Rate',
-    'Machine ID',
-    'Type'
-]
-REGR_LOG = ['Time Stamp',
-    'Watts',
-    'Volts',
-    'Amps',
-    'Watt Hours SC20',
-    'Watt Hours Today',
-    'Max Watts',
-    'Max Volts',
-    'Max Amps',
-    'Min Watts',
-    'Min Volts',
-    'Min Amps',
-    'Power Factor',
-    'Power Cycle',
-    'Frequency',
-    'Volt Amps',
-    'Relay Not Closed',
-    'Send Rate',
-    'Machine ID',
-    'Type',
-    'Credit'
-]
-
 import os, sys, datetime, threading
-from processor.db_utils import connect, search, insert
-from processor.settings import DBNAME, DBUSER, PWD
+from db_utils import connect, search, insert
+from settings import DBNAME, DBUSER, PWD
+from csv_formats import MAIN_LOG, MAIN_LEN, REGR_LOG, REGR_LEN
 
 def get_or_create_circuit (machine_id, site_id, ip_addr, is_main=False):
     """Lookup the machine_id, site_id and ip_addr in the circuit table
@@ -219,7 +89,7 @@ def parse_log_line (circuit_id, line, ignore=[18, 19]):
                 field = convert_field_name(MAIN_LOG[i])
                 data[field] = convert_relay_closed(datum)
             else:
-                if i > len(MAIN_LOG):
+                if i > MAIN_LEN:
                     field = convert_field_name(MAIN_LOG[i])
                 else:
                     field = convert_field_name(REGR_LOG[i])
@@ -256,7 +126,7 @@ def load_log (path, filename, site_id, ip_addr):
         data_dicts = [] # list of dicts to bulk insert
         for i, line in enumerate(data.splitlines()):
             log_data = line.split(',')
-            if len(log_data) == len(MAIN_LOG) or len(log_data) == len(REGR_LOG):
+            if len(log_data) == MAIN_LEN or len(log_data) == REGR_LEN:
                 
                 # ignore the csv file header line
                 if log_data[0] != """Time Stamp""":
