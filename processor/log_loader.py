@@ -164,7 +164,9 @@ def get_or_create_circuit (machine_id, site_id, ip_addr, is_main=False):
         if res is not None and len(res) > 0:
             return res[0][0]
         else:
-            insert (conn, 'circuit', inserts=[circuit_data])
+            insert (conn, 'circuit',
+                    columns=circuit_data.keys(),
+                    inserts=[circuit_data])
             return get_or_create_circuit (machine_id, site_id, ip_addr)
 
 def parse_timestamp (ts_str):
@@ -283,7 +285,10 @@ def load_log (path, filename, site_id, ip_addr):
         if len(data_dicts) > 0:
             conn = connect(DBNAME, DBUSER, PWD)
             if conn:
-                insert (conn, 'power_reading', inserts=data_dicts, close_conn=True)
+                insert (conn, 'power_reading',
+                        columns=data_dicts[0].keys(),
+                        inserts=data_dicts,
+                        close_conn=True)
 
     except IOError:
         print >> sys.stderr, "Error: could not open", os.path.join(path, filename)

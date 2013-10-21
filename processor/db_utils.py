@@ -40,7 +40,7 @@ def search (conn, select_string, select_params={}, close_conn=False):
 
     return results
 
-def insert (conn, table, inserts=[], close_conn=False):
+def insert (conn, table, columns, inserts, close_conn=False):
     """Use the connection to insert one or more statements to the
     database, where inserts is a list of dicts
     { table column : value, ... }"""
@@ -50,12 +50,17 @@ def insert (conn, table, inserts=[], close_conn=False):
 
     # process each {columns=values} dict
     try:
-        columns = inserts[0].keys()
         column_bindings = map(lambda x: '%('+x+')s', columns)
         cur.executemany("INSERT INTO "+ table +
                         " ("+ ','.join(columns) +") VALUES ("+
                         ','.join(column_bindings)+")",
                         inserts)
+    except KeyError:
+        # this happened b/c one or more dicts in the inserts list
+        # did not match the keys as defined in the columns list
+        # so display the error and rollback the transaction
+        conn.rollback()
+        print >> sys.stderr, 'Error: bad inserts', inserts 
     except psycopg2.IntegrityError:
         # if we wind up trying to insert a duplicate (violating a
         # table UNIQUE constraint) let it go by committing
