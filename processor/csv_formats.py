@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 
 """
-A definition of the two types of log files:
+This file conatins the logical definition of the two types of log files:
 
 (1) A Main Circuit log file :	MAIN_LOG
 
 (2) A Regular Circuit log file:	REGR_LOG
+
+Along with parsing and type conversion functions for this data.
 
 """
 
@@ -58,3 +60,47 @@ REGR_LOG = [ # header, example
 ]
 REGR_LEN = len(REGR_LOG)
 
+def parse_timestamp (ts_str):
+    """Convert the ts_str string (in YYYYMMDDHHMISS format,
+    e.g. 20130812020002) into a datetime.datetime object"""
+
+    if len(ts_str) == 14:
+        ts_parts = [
+            ts_str[0:4],   # '2013'
+            ts_str[4:6],   # '08'
+            ts_str[6:8],   # '12'
+            ts_str[8:10],  # '02'
+            ts_str[10:12], # '00'
+            ts_str[12:14]  # '02'
+            ]
+        try:
+            return datetime.datetime( *tuple(map(int, ts_parts)) )
+        except ValueError, val_err:
+            print >> sys.stderr, 'Error: could not parse', ts_str, val_err
+        
+def convert_relay_closed (rc_str): 
+    """Convert the 'Relay Not Closed' value string in the csv data into
+    a boolean (0=False, 1=True)"""
+
+    try:
+        rc_val = int(rc_str)
+        return rc_val == 1
+    except ValueError, val_err:
+        print >> sys.stderr, ' '.join(['Error: could not parse relay data',
+                                       rc_str,
+                                       val_err])
+    
+def convert_field_name (field_name):
+    """Turn the name string into the column name of the table (make
+    lowercase and replace space with underscore)"""
+
+    return field_name.lower().replace(' ', '_')
+
+def parse_field (field_data):
+    """Parse the field data with the default conversion method (everything
+    is numeric except for timestamp and relay closed)"""
+
+    try:
+        return float(field_data)
+    except ValueError, val_err:
+        print >> sys.stderr, 'Error: could not parse', field_data, val_err

@@ -12,7 +12,7 @@ defined in processor.csv_format.py.
 import os, sys, datetime, threading
 from db_utils import connect, search, insert
 from settings import DBNAME, DBUSER, PWD
-from csv_formats import MAIN_LOG, MAIN_LEN, REGR_LOG, REGR_LEN
+from csv_formats import MAIN_LOG, MAIN_LEN, REGR_LOG, REGR_LEN, parse_timestamp, convert_relay_closed, convert_field_name, parse_field
 
 def get_or_create_circuit (machine_id, site_id, ip_addr, is_main=False):
     """Lookup the machine_id, site_id and ip_addr in the circuit table
@@ -39,41 +39,6 @@ def get_or_create_circuit (machine_id, site_id, ip_addr, is_main=False):
                     inserts=[circuit_data])
             return get_or_create_circuit (machine_id, site_id, ip_addr)
 
-def parse_timestamp (ts_str):
-    """Convert the ts_str string (in YYYYMMDDHHMISS format,
-    e.g. 20130812020002) into a datetime.datetime object"""
-
-    if len(ts_str) == 14:
-        ts_parts = [
-            ts_str[0:4],   # '2013'
-            ts_str[4:6],   # '08'
-            ts_str[6:8],   # '12'
-            ts_str[8:10],  # '02'
-            ts_str[10:12], # '00'
-            ts_str[12:14]  # '02'
-            ]
-        try:
-            return datetime.datetime( *tuple(map(int, ts_parts)) )
-        except ValueError, val_err:
-            print >> sys.stderr, 'Error: could not parse', ts_str, val_err
-        
-def convert_relay_closed (rc_str): 
-    """Convert the 'Relay Not Closed' value string in the csv data into
-    a boolean (0=False, 1=True)"""
-
-    try:
-        rc_val = int(rc_str)
-        return rc_val == 1
-    except ValueError, val_err:
-        print >> sys.stderr, ' '.join(['Error: could not parse relay data',
-                                       rc_str,
-                                       val_err])
-    
-def convert_field_name (field_name):
-    """Turn the name string into the column name of the table (make
-    lowercase and replace space with underscore)"""
-
-    return field_name.lower().replace(' ', '_')
 
 def parse_log_line (circuit_id, line, ignore=[18, 19]):
     """Convert the list of data found in a single line of the csv file
@@ -82,28 +47,18 @@ def parse_log_line (circuit_id, line, ignore=[18, 19]):
     data = {'circuit':circuit_id}
     for i, datum in enumerate(line):
         if i not in ignore:
-            if i == 0:
+            if i > MAIN_LEN:
+                field = convert_field_name(REGR_LOG[i])
+            else:
                 field = convert_field_name(MAIN_LOG[i])
+
+            if i == 0:
                 data[field] = parse_timestamp(datum)
             elif i == 16:
-                field = convert_field_name(MAIN_LOG[i])
                 data[field] = convert_relay_closed(datum)
             else:
-                if i > MAIN_LEN:
-                    field = convert_field_name(MAIN_LOG[i])
-                else:
-                    field = convert_field_name(REGR_LOG[i])
+                data[field] = parse_field(datum)
 
-                try:
-                    val = float(datum) # everything else is numeric
-                    data[field] = val
-                except ValueError, val_err:
-                    data[field] = None
-                    print >> sys.stderr, ' '.join(['Error: could not parse',
-                                                  datum,
-                                                  'at index',
-                                                  i,
-                                                  val_err])
     return data
 
 def load_log (path, filename, site_id, ip_addr):
@@ -225,7 +180,9 @@ def main():
     under it"""
 
     if len(sys.argv[1:]) != 1:
-        print "\nUsage:\n\tpython "+sys.argv[0]+" [SharedSolar SD Log Files Root Folder]\n\n"
+        print ' '.join(["\nUsage:\n\tpython",
+                        sys.argv[0],
+                        "[SharedSolar SD Log Files Root Folder]\n\n"])
     else:
         # see if there are log files in the root folder specified
         log_files = get_log_files(sys.argv[1])
