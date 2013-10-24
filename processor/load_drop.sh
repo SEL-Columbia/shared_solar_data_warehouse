@@ -18,8 +18,7 @@ fi
 drop_dir=$1
 database=$2
 output_dir=$3
-# unique_date=`date +%Y%m%d%m%S`
-unique_date="201310231040"
+unique_date=`date +%Y%m%d%m%S`
 outfile="$output_dir/denorm_$unique_date.csv"
 
 # create output dir for denormalized files if it doesn't exist
