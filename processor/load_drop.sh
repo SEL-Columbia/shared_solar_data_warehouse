@@ -5,7 +5,7 @@
 
 usage ()
 {
-  echo "usage: $0 drop_dir database output_dir"
+  echo "usage: $0 drop_dir database"
   exit
 }
 
@@ -15,10 +15,13 @@ then
   exit 1
 fi
 
+# get the current directory
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
 drop_dir=$1
 database=$2
-output_dir=$3
 unique_date=`date +%Y%m%d%m%S`
+output_dir="$DIR/output"
 outfile="$output_dir/denorm_$unique_date.csv"
 
 # create output dir for denormalized files if it doesn't exist
@@ -41,8 +44,8 @@ then
   exit 1 
 fi
 
-echo "normalizing the raw data into circuit and power_reading tables"
-psql -d $database < ../sql/load.sql || { echo "normalizing raw data failed, exiting"; exit 1; }
+#echo "normalizing the raw data into circuit and power_reading tables"
+#psql -d $database < ../sql/load.sql || { echo "normalizing raw data failed, exiting"; exit 1; }
 
 
 

@@ -120,6 +120,10 @@ def write_denormalized_csv(logfile, drop_id, site_id, ip_addr):
                     row['site_id'] = site_id
                     row['ip_addr'] = ip_addr
                     row['line_num'] = line_num
+                     
+                    # format the time according to iso std for postgres timestamp field
+                    timestamp = row['Time Stamp']
+                    row['Time Stamp'] = "%s %s" % (timestamp[:8], timestamp[8:])
                     # output fields in HEADER order
                     for field in HEADER:
                         input_field = FIELD_MAP[field]
