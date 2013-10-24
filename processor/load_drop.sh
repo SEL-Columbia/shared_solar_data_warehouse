@@ -23,14 +23,14 @@ unique_date="201310231040"
 outfile="$output_dir/denorm_$unique_date.csv"
 
 # create output dir for denormalized files if it doesn't exist
-#mkdir -p $output_dir
-#
-#echo "creating denormalized csvs..."
-#python denormalize_to_csv.py $drop_dir || { echo "denormalize_to_csv failed, exiting"; exit 1; }
-#
-#echo "concatenating csv's into $outfile..."
-#find $drop_dir -name '*csv' | xargs cat | grep -v '^drop' > $outfile || { echo "concatenating csv's failed, exiting"; exit 1; }
-#
+mkdir -p $output_dir
+
+echo "creating denormalized csvs..."
+python denormalize_to_csv.py $drop_dir || { echo "denormalize_to_csv failed, exiting"; exit 1; }
+
+echo "concatenating csv's into $outfile..."
+find $drop_dir -name '*csv' | xargs cat | grep -v '^drop' > $outfile || { echo "concatenating csv's failed, exiting"; exit 1; }
+
 echo "loading denormalized csv $outfile into raw_circuit_reading table..."
 psql -v ON_ERROR_STOP=1 -d $database <<HERE
 COPY raw_circuit_reading (drop_id,site_id,ip_addr,machine_id,time_stamp,line_num,circuit_type,watts,watt_hours_sc20,credit) FROM '$outfile' (FORMAT csv)
