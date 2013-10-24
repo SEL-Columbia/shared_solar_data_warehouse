@@ -21,7 +21,8 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 drop_dir=$1
 database=$2
 unique_date=`date +%Y%m%d%m%S`
-output_dir="$DIR/output"
+output_dir="$DIR/../output"
+sql_dir="$DIR/../sql"
 outfile="$output_dir/denorm_$unique_date.csv"
 
 # create output dir for denormalized files if it doesn't exist
@@ -44,6 +45,21 @@ then
   exit 1 
 fi
 
+echo "de-duplicate raw table and loading circuit_reading table..."
+psql -v ON_ERROR_STOP=1 -d $database < $sql_dir/de_dup.sql
+
+if [ "$?" -ne 0 ]; 
+then 
+  echo "loading circuit_reading table failed, exiting"; exit 1;
+fi
+
+echo "cleaning circuit_reading table..."
+psql -v ON_ERROR_STOP=1 -d $database < $sql_dir/filter.sql
+
+if [ "$?" -ne 0 ]; 
+then 
+  echo "cleaning circuit_reading table failed, exiting"; exit 1;
+fi
 #echo "normalizing the raw data into circuit and power_reading tables"
 #psql -d $database < ../sql/load.sql || { echo "normalizing raw data failed, exiting"; exit 1; }
 
