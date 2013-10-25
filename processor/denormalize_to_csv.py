@@ -80,43 +80,47 @@ def write_denormalized_csv(logfile, drop_id, site_id, ip_addr):
     with open(logfile,'r') as csvinput:
         with open(outfile, 'w') as csvoutput:
     
-            first_line = csvinput.readline()
-            # Simple check for properly formatted file (NOTE:  MAINS files will not have a credit field at the end)
-            if (first_line.startswith("Time Stamp,Watts,Volts,Amps,Watt Hours SC20,Watt Hours Today,Max Watts,Max Volts,Max Amps,Min Watts,Min Volts,Min Amps,Power Factor,Power Cycle,Frequency,Volt Amps,Relay Not Closed,Send Rate,Machine ID,Type")):
-                # reset read ptr
-                csvinput.seek(0)
-                reader = csv.DictReader(csvinput)
-                writer = csv.writer(csvoutput, lineterminator='\n')
-                writer.writerow(HEADER)
-        
-                all_rows = []
-                line_num = 0
-                for row in reader:
-                    new_row = []
-                    # add missing fields
-                    row['drop_id'] = drop_id
-                    row['site_id'] = site_id
-                    row['ip_addr'] = ip_addr
-                    row['line_num'] = line_num
-                     
-                    # format the time according to iso std for postgres timestamp field
-                    timestamp = row['Time Stamp']
-                    row['Time Stamp'] = "%s %s" % (timestamp[:8], timestamp[8:])
-                    # output fields in HEADER order
-                    for field in HEADER:
-                        input_field = FIELD_MAP[field]
-                        input_val = 0 # default to 0 if field doesn't exist (i.e. credit field)
-                        if input_field in row:
-                            input_val = row[input_field]
-                        new_row.append(input_val)
-                    all_rows.append(new_row)
-                    
-                    line_num = line_num + 1
-        
-                writer.writerows(all_rows)
-                line_num = 0
+            try: 
+                first_line = csvinput.readline()
+                # Simple check for properly formatted file (NOTE:  MAINS files will not have a credit field at the end)
+                if (first_line.startswith("Time Stamp,Watts,Volts,Amps,Watt Hours SC20,Watt Hours Today,Max Watts,Max Volts,Max Amps,Min Watts,Min Volts,Min Amps,Power Factor,Power Cycle,Frequency,Volt Amps,Relay Not Closed,Send Rate,Machine ID,Type")):
+                    # reset read ptr
+                    csvinput.seek(0)
+                    reader = csv.DictReader(csvinput)
+                    writer = csv.writer(csvoutput, lineterminator='\n')
+                    writer.writerow(HEADER)
+            
+                    all_rows = []
+                    line_num = 0
+                    for row in reader:
+                        new_row = []
+                        # add missing fields
+                        row['drop_id'] = drop_id
+                        row['site_id'] = site_id
+                        row['ip_addr'] = ip_addr
+                        row['line_num'] = line_num
+                         
+                        # format the time according to iso std for postgres timestamp field
+                        timestamp = row['Time Stamp']
+                        row['Time Stamp'] = "%s %s" % (timestamp[:8], timestamp[8:])
+                        # output fields in HEADER order
+                        for field in HEADER:
+                            input_field = FIELD_MAP[field]
+                            input_val = 0 # default to 0 if field doesn't exist (i.e. credit field)
+                            if input_field in row:
+                                input_val = row[input_field]
+                            new_row.append(input_val)
+                        all_rows.append(new_row)
+                        
+                        line_num = line_num + 1
+            
+                    writer.writerows(all_rows)
+                    line_num = 0
+    
+                else:
+                    raise
 
-            else:
+            except Exception:
                 sys.stderr.write("Empty or corrupted file: %s\n" % logfile)
 
 def denormalize_to_csv(logs_dir):
