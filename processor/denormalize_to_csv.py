@@ -83,36 +83,14 @@ def write_denormalized_csv(logfile, drop_id, site_id, ip_addr):
             first_line = csvinput.readline()
             # Simple check for properly formatted file (NOTE:  MAINS files will not have a credit field at the end)
             if (first_line.startswith("Time Stamp,Watts,Volts,Amps,Watt Hours SC20,Watt Hours Today,Max Watts,Max Volts,Max Amps,Min Watts,Min Volts,Min Amps,Power Factor,Power Cycle,Frequency,Volt Amps,Relay Not Closed,Send Rate,Machine ID,Type")):
-		# reset read ptr
-		csvinput.seek(0)
+                # reset read ptr
+                csvinput.seek(0)
                 reader = csv.DictReader(csvinput)
                 writer = csv.writer(csvoutput, lineterminator='\n')
                 writer.writerow(HEADER)
-
-                """
-                has_credit = True
-                # handle the header row
-                row = next(reader)
-                # If the header row doesn't contain the Credit field, add it
-		if row[-1] != 'Credit':
-                    row.append('Credit')
-                    has_credit = False
-
-                # convert field names
-                for field in row:
-                    if field not in FIELD_MAP:
-                        print("Skipping field: %s in file: %s skipping..." % (field, logfile))
-                    else:
-                        all.append(FIELD_MAP[field])
-
-                row.insert(0, 'line_num')
-                row.insert(1, 'site_id')
-                row.insert(2, 'ip_addr')
-                all.append(row)
-                """
         
                 all_rows = []
-		line_num = 0
+                line_num = 0
                 for row in reader:
                     new_row = []
                     # add missing fields
@@ -139,8 +117,7 @@ def write_denormalized_csv(logfile, drop_id, site_id, ip_addr):
                 line_num = 0
 
             else:
-		sys.stderr.write("Empty or corrupted file: %s\n" % logfile)
-    
+                sys.stderr.write("Empty or corrupted file: %s\n" % logfile)
 
 def denormalize_to_csv(logs_dir):
 
@@ -148,12 +125,12 @@ def denormalize_to_csv(logs_dir):
         for f in filenames:
             if f.endswith(".log"):
                 # Note:  dir_info contents are drop_id/site_id/YYYY/MM/DD/HH
-		dir_info = dirpath.split("/")
+                dir_info = dirpath.split("/")
                 drop_id = dir_info[-6] # get the drop_id from the parent of site dir
-		site_id = dir_info[-5] # get the site from the dir (site is always 5 dirs up in the path)
-		ip_addr = f[0:f.find(".")] # get the ip from the filename
-		full_filename = os.path.join(dirpath, f)
-		write_denormalized_csv(full_filename, drop_id, site_id, ip_addr)
+                site_id = dir_info[-5] # get the site from the dir (site is always 5 dirs up in the path)
+                ip_addr = f[0:f.find(".")] # get the ip from the filename
+                full_filename = os.path.join(dirpath, f)
+                write_denormalized_csv(full_filename, drop_id, site_id, ip_addr)
  
 
 
