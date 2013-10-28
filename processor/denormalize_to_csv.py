@@ -15,33 +15,56 @@ description:  Script to take a directory of sharedsolar log files
               (while duplicating some...hence "denormalize")
 """
 
-# Determines the input/output field mapping
+# validation function
+# returns a function that can be used to check a value against
+# the given type and field length
+# TODO:  Add range checks?  regex based?
+def field_type_size_check(type_func, max_len):
+    def type_size_fun(value):
+        try:
+           x = type_func(value)
+           return len(value) <= max_len
+        except:
+           return False
+    
+    return type_size_fun
+    
+def validate_timestamp(value):
+    (day, timestamp) =  (value[:8], value[9:]) # assume "YYYYMMDD HHMMSS" format
+    try:
+       day_int = int(day)
+       timestamp_int = int(timestamp)
+    except:
+       return False 
+    return len(day) <= 8 and len(timestamp) <= 6
+
+# Determines the input/output field mapping and field type validation
 FIELD_MAP = {
-             'drop_id': 'drop_id',
-             'site_id': 'site_id',
-             'ip_addr': 'ip_addr',
-             'time_stamp': 'Time Stamp',
-             'line_num': 'line_num',
-             'watts': 'Watts',
-             'volts': 'Volts',
-             'amps': 'Amps',
-             'watt_hours_sc20': 'Watt Hours SC20',
-             'watt_hours_today': 'Watt Hours Today',
-             'max_watts': 'Max Watts',
-             'max_volts': 'Max Volts',
-             'max_amps': 'Max Amps',
-             'min_watts': 'Min Watts',
-             'min_volts': 'Min Volts',
-             'min_amps': 'Min Amps',
-             'power_factor': 'Power Factor',
-             'power_cycle': 'Power Cycle',
-             'frequency': 'Frequency',
-             'volt_amps': 'Volt Amps',
-             'relay_not_closed': 'Relay Not Closed',
-             'send_rate': 'Send Rate',
-             'machine_id': 'Machine ID',
-             'circuit_type': 'Type',
-             'credit': 'Credit'
+             'drop_id': ('drop_id', field_type_size_check(int, 8)),
+             'site_id': ('site_id', field_type_size_check(str, 8)),
+             'ip_addr': ('ip_addr', field_type_size_check(str, 16)),
+             'time_stamp': ('Time Stamp', validate_timestamp), # account for added space
+             'line_num': ('line_num', field_type_size_check(int, 8)),
+             'watts': ('Watts', field_type_size_check(float, 10)),
+             'volts': ('Volts', field_type_size_check(float, 10)),
+             'amps': ('Amps', field_type_size_check(float, 10)),
+             'watt_hours_sc20': ('Watt Hours SC20', field_type_size_check(float, 10)),
+             'watt_hours_today': ('Watt Hours Today', field_type_size_check(float, 10)),
+             'max_watts': ('Max Watts',field_type_size_check(float, 10)),
+             'max_volts': ('Max Volts',field_type_size_check(float, 10)),
+             'max_amps': ('Max Amps',field_type_size_check(float, 10)),
+             'min_watts': ('Min Watts',field_type_size_check(float, 10)),
+             'min_volts': ('Min Volts',field_type_size_check(float, 10)),
+             'min_amps': ('Min Amps',field_type_size_check(float, 10)),
+             'power_factor': ('Power Factor',field_type_size_check(float, 10)),
+             'power_cycle': ('Power Cycle',field_type_size_check(float, 10)),
+             'frequency': ('Frequency', field_type_size_check(float, 10)),
+             'volt_amps': ('Volt Amps', field_type_size_check(float, 10)),
+             'relay_not_closed': ('Relay Not Closed', field_type_size_check(int, 1)),
+             'send_rate': ('Send Rate', field_type_size_check(int, 5)),
+             'machine_id': ('Machine ID', field_type_size_check(int, 20)),
+             'circuit_type': ('Type', field_type_size_check(str, 10)),
+             'credit': ('Credit', field_type_size_check(float, 10))
 }
 
 
@@ -98,17 +121,21 @@ def write_denormalized_csv(logfile, drop_id, site_id, ip_addr):
                         row['drop_id'] = drop_id
                         row['site_id'] = site_id
                         row['ip_addr'] = ip_addr
-                        row['line_num'] = line_num
+                        row['line_num'] = str(line_num)
                          
                         # format the time according to iso std for postgres timestamp field
                         timestamp = row['Time Stamp']
                         row['Time Stamp'] = "%s %s" % (timestamp[:8], timestamp[8:])
                         # output fields in HEADER order
                         for field in HEADER:
-                            input_field = FIELD_MAP[field]
+                            (input_field, validate_func) = FIELD_MAP[field]
                             input_val = 0 # default to 0 if field doesn't exist (i.e. credit field)
                             if input_field in row:
                                 input_val = row[input_field]
+                            # check if the value is OK
+                            # TODO:  Do we want to just skip this line? (currently throws out the file)
+                            if not validate_func(input_val):
+                                raise Exception("Invalid field (%s) value (%s) at line %s in file %s" % (input_field, input_val[:20], line_num, logfile))
                             new_row.append(input_val)
                         all_rows.append(new_row)
                         
@@ -118,10 +145,10 @@ def write_denormalized_csv(logfile, drop_id, site_id, ip_addr):
                     line_num = 0
     
                 else:
-                    raise
+                    raise Exception("Empty or corrupted file, %s" % logfile)
 
-            except Exception:
-                sys.stderr.write("Empty or corrupted file: %s\n" % logfile)
+            except Exception, e:
+                sys.stderr.write("Exception:  %s\n" % e)
 
 def denormalize_to_csv(logs_dir):
 
