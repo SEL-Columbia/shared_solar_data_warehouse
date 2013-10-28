@@ -64,7 +64,7 @@ FIELD_MAP = {
              'send_rate': ('Send Rate', field_type_size_check(int, 5)),
              'machine_id': ('Machine ID', field_type_size_check(int, 20)),
              'circuit_type': ('Type', field_type_size_check(str, 10)),
-             'credit': ('Credit', field_type_size_check(float, 10))
+             'credit': ('Credit', field_type_size_check(float, 15)) 
 }
 
 
@@ -101,7 +101,7 @@ HEADER=['drop_id','site_id','ip_addr','machine_id','time_stamp','line_num','circ
 def write_denormalized_csv(logfile, drop_id, site_id, ip_addr):
     outfile = logfile.replace(".log", ".csv")
     with open(logfile,'r') as csvinput:
-        with open(outfile, 'w') as csvoutput:
+        with open(outfile, 'w') as csvoutput:  # note:  replaces existing files
     
             try: 
                 first_line = csvinput.readline()
@@ -129,13 +129,13 @@ def write_denormalized_csv(logfile, drop_id, site_id, ip_addr):
                         # output fields in HEADER order
                         for field in HEADER:
                             (input_field, validate_func) = FIELD_MAP[field]
-                            input_val = 0 # default to 0 if field doesn't exist (i.e. credit field)
+                            input_val = "0" # default to "0" if field doesn't exist (i.e. credit field)
                             if input_field in row:
                                 input_val = row[input_field]
                             # check if the value is OK
                             # TODO:  Do we want to just skip this line? (currently throws out the file)
                             if not validate_func(input_val):
-                                raise Exception("Invalid field (%s) value (%s) at line %s in file %s" % (input_field, input_val[:20], line_num, logfile))
+                                raise Exception("Invalid field (%s) value (%s) at line %s" % (input_field, input_val[:20], line_num))
                             new_row.append(input_val)
                         all_rows.append(new_row)
                         
@@ -145,10 +145,10 @@ def write_denormalized_csv(logfile, drop_id, site_id, ip_addr):
                     line_num = 0
     
                 else:
-                    raise Exception("Empty or corrupted file, %s" % logfile)
+                    raise Exception("Empty or corrupted")
 
             except Exception, e:
-                sys.stderr.write("Exception:  %s\n" % e)
+                sys.stderr.write("%s file: %s\n" % (e, logfile))
 
 def denormalize_to_csv(logs_dir):
 
