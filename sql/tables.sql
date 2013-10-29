@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS raw_circuit_reading (
   site_id          varchar(8) NOT NULL,
   machine_id       bigint NOT NULL,
   ip_addr          varchar(16) NOT NULL,
-  circuit_type     varchar(10) NOT NULL,
+  circuit_type     varchar(10),
   time_stamp       timestamp without time zone NOT NULL,
   watts            real,
   watt_hours_sc20  double precision,
