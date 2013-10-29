@@ -4,6 +4,7 @@
 
 -- clear out circuit_reading 1st
 delete from circuit_reading;
+ALTER TABLE circuit_reading DROP CONSTRAINT IF EXISTS circuit_reading_pkey;
 
 INSERT
 INTO circuit_reading 
@@ -21,3 +22,5 @@ FROM
                        ORDER BY line_num) row_num 
     FROM raw_circuit_reading) raw 
 WHERE raw.row_num=1;
+
+ALTER TABLE circuit_reading ADD CONSTRAINT circuit_reading_pkey PRIMARY KEY (site_id, ip_addr, time_stamp);

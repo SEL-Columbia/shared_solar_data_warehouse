@@ -28,8 +28,11 @@ sql_dir="$PROJECT_DIR/sql"
 load_dir="$PROJECT_DIR/load"
 processed_dir="$PROJECT_DIR/processed"
 
+
+echo "`date +"%Y%m%d %H%M%S"`: Running script on PROJECT_DIR $PROJECT_DIR..."
+
 if ! [[ -d $load_dir ]] ; then
-    echo "Load directory $load_dir doesn't exist, exiting"
+    echo "`date +"%Y%m%d %H%M%S"`: Load directory $load_dir doesn't exist, exiting"
     exit 1
 fi
 
@@ -37,7 +40,7 @@ fi
 mkdir -p $processed_dir
 
 echo "`date +"%Y%m%d %H%M%S"`: Creating denormalized csvs..."
-for drop_dir in `find $load_dir/* -maxdepth 0 -type d`; do
+for drop_dir in `find $load_dir -maxdepth 1 -mindepth 1 -type d`; do
     echo "`date +"%Y%m%d %H%M%S"`: Running denormalize_to_csv on $drop_dir..."
     python denormalize_to_csv.py $drop_dir || { echo "denormalize_to_csv failed for $drop_dir, exiting"; exit 1; }
 
@@ -50,7 +53,7 @@ for drop_dir in `find $load_dir/* -maxdepth 0 -type d`; do
 done
 
 echo "`date +"%Y%m%d %H%M%S"`: Loading denormalized csvs into postgres..."
-for csv_file in `find $load_dir/* -maxdepth 0 -type f -name '*.csv'`; do
+for csv_file in `find $load_dir -maxdepth 1 -mindepth 1 -type f -name '*.csv'`; do
     echo "`date +"%Y%m%d %H%M%S"`: Loading denormalized csv $csv_file into raw_circuit_reading table..."
 
     # HERE DOC formatting is ugly because I don't know how to get bash 
@@ -84,6 +87,14 @@ psql -v ON_ERROR_STOP=1 -d $database < $sql_dir/filter.sql
 if [ "$?" -ne 0 ]; 
 then 
   echo "`date +"%Y%m%d %H%M%S"`: cleaning circuit_reading table failed, exiting"; exit 1;
+fi
+
+echo "`date +"%Y%m%d %H%M%S"`: Aggregating timeseries data..."
+psql -v ON_ERROR_STOP=1 -d $database < $sql_dir/aggregate.sql
+
+if [ "$?" -ne 0 ]; 
+then 
+  echo "`date +"%Y%m%d %H%M%S"`: aggregating data failed, exiting"; exit 1;
 fi
 
 echo "`date +"%Y%m%d %H%M%S"`: Complete!"
