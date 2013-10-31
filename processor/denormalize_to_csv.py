@@ -113,7 +113,6 @@ def write_denormalized_csv(logfile, drop_id, site_id, ip_addr):
                     writer = csv.writer(csvoutput, lineterminator='\n')
                     writer.writerow(HEADER)
             
-                    all_rows = []
                     line_num = 0
                     for row in reader:
                         new_row = []
@@ -137,11 +136,10 @@ def write_denormalized_csv(logfile, drop_id, site_id, ip_addr):
                             if not validate_func(input_val):
                                 raise Exception("Invalid field (%s) value (%s) at line %s" % (input_field, input_val[:20], line_num))
                             new_row.append(input_val)
-                        all_rows.append(new_row)
-                        
+
+                        writer.writerow(new_row)
                         line_num = line_num + 1
             
-                    writer.writerows(all_rows)
                     line_num = 0
     
                 else:

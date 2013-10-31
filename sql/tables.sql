@@ -42,6 +42,5 @@ CREATE TABLE IF NOT EXISTS circuit_reading (
   watts            real,
   watt_hours_sc20  double precision,
   credit           real,
-  watt_hours_delta real,
-  watt_hours_used  double precision
+  watt_hours_delta real
 );
