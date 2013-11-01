@@ -46,7 +46,8 @@ for drop_dir in `find $load_dir -maxdepth 1 -mindepth 1 -type d`; do
 
     denorm_csv=$(basename "$drop_dir").csv
     echo "`date +"%Y%m%d %H%M%S"`: Concatenating csv's into $load_dir/$denorm_csv..."
-    find $drop_dir -name '*.csv' -exec cat {} \; | grep -v '^drop' > $load_dir/$denorm_csv || { echo "concatenating csv's failed for $drop_dir, exiting"; exit 1; }
+    # NOTE:  Convert from iso-8859-1 to utf-8 since postgres db is setup for utf-8
+    find $drop_dir -name '*.csv' -exec cat {} \; | grep -v '^drop' | uconv -f iso-8859-1 -t utf-8 > $load_dir/$denorm_csv || { echo "concatenating csv's failed for $drop_dir, exiting"; exit 1; }
 
     echo "`date +"%Y%m%d %H%M%S"`: Moving $drop_dir to processed..."
     mv $drop_dir $processed_dir
