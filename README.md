@@ -15,27 +15,33 @@ The current version is based on <a href="http://www.postgresql.org/" target="_bl
 For ubuntu/debian, use the following standard packages as root or sudo:
 
 ```
-    sudo apt-get install python python-all-dev python-pip
-    sudo apt-get install postgresql postgresql-contrib
-    sudo pip install psycopg2
+sudo apt-get -y install git python-all-dev postgresql postgresql-contrib libicu-dev
 ```
 
-Next, as user <tt>postgres</tt>, create a database, and install the <a href="http://www.postgresql.org/docs/current/static/uuid-ossp.html" target="_blank">uuid-ossp</a> extension:
+Next, as user <tt>postgres</tt> create the database and the sharedsolar role/user:
 
 ```
-$ sudo su - postgres
-postgres:~$ createdb [database_name_goes_here]
-postgres:~$ psql -d [database_name_goes_here]
-psql (9.1.9)
-Type "help" for help.
+# login as postgres
+sudo -u postgres -i
 
-sd_log=# CREATE EXTENSION "uuid-ossp";
-CREATE EXTENSION
+# create DB user and set password as needed
+psql -c "CREATE ROLE sharedsolar SUPERUSER LOGIN PASSWORD '<password_here>';"
+# create DB
+psql -c "CREATE DATABASE sharedsolar OWNER sharedsolar;"
+# logout postgres user
+exit
 ```
 
-Create the appropriate <a href="http://www.postgresql.org/docs/9.3/static/database-roles.html" target="_blank">database roles</a> or <a href="http://www.postgresql.org/docs/9.3/static/client-authentication.html" target="_blank">authorized clients</a> and update the <tt>processor/settings.py</tt> in this repo with the correct <tt>dbname</tt>, <tt>dbuser</tt> and optional <tt>pwd</tt>.
+To simplify interaction with postgresql, add a .pgpass file to eliminate the need to enter a password each time (assumes a sharedsolar user has been created on your system):
 
-Finally, install the tables via <tt>psql</tt>:
+```
+# add .pgpass pwd file to eliminate password prompt for user
+echo "*:*:*:sharedsolar:<password_here>" > .pgpass
+chmod 600 .pgpass
+
+```
+
+Finally, install the tables via <tt>psql</tt> (you may not need the -U depending on how you setup the pgpass file above):
 
 ```
 $ psql -d [database_name_goes_here] -U [authorized_user_goes_here] < sql/tables.sql
