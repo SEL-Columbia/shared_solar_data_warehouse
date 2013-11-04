@@ -4,7 +4,7 @@ shared_solar_data_warehouse
 Description
 -----------
 
-This repository contains tools for assembling, loading, cleaning and aggregating <a href="http://sharedsolar.org/" target="_blank">Shared Solar</a> \"raw\" usage data into a database designed for simple retrieval at minutely, hourly and daily temporal resolutions.
+This repository contains tools for assembling, loading, cleaning and aggregating <a href="http://sharedsolar.org/" target="_blank">Shared Solar</a> "raw" usage data into a database designed for simple retrieval at minutely, hourly and daily temporal resolutions.
 
 
 Installation
@@ -54,31 +54,31 @@ CREATE TABLE
 Usage
 -----
 
-SharedSolar \"raw\" usage data consists power meter data (i.e. watts, watt_hours...) recorded at 3 second intervals in iso-8859-1 encoded files (1 file per circuit hour).  
+SharedSolar "raw" usage data consists of power meter data (i.e. watts, watt_hours...) recorded at 3 second intervals in iso-8859-1 encoded files (1 file per circuit hour).  
 
 The basic workflow for loading data is:
 
-> SharedSolar Raw Data Drop (individual circuit hour log files)
-> |
-> v
-> Assemble into CSV (via python denormalize_to_csv.py script)
-> |
-> v
-> Load into Postgresql database (via bulk load "copy")
-> |
-> v
-> De-duplicate and clean data (via sql scripts)
-> |
-> v
-> Aggregate data into minutely, hourly and daily resolution tables (via sql)
+> SharedSolar Raw Data Drop (individual circuit hour log files)  
+> |  
+> v  
+> Assemble into CSV (via python denormalize_to_csv.py script)  
+> |  
+> v  
+> Load into Postgresql database (via bulk load "copy")  
+> |  
+> v  
+> De-duplicate and clean data (via sql scripts)  
+> |  
+> v  
+> Aggregate data into minutely, hourly and daily resolution tables (via sql)  
 
 This workflow is encapsulated by the processor/load_script.sh which assumes the following folder structure in addition to what is in this repository:
 
-> shared_solar_data_warehouse (THIS repo...i.e. the PROJECT_DIR)
-> \
->  load (this is where the SharedSolar raw data drops to be loaded go)
-> \
->  processed (this is where the files that have been processed go)
+> shared_solar_data_warehouse (THIS repo...i.e. the PROJECT_DIR)  
+> \  
+>  load (this is where the SharedSolar raw data drops to be loaded go)  
+> \  
+>  processed (this is where the files that have been processed go)  
 
 The SharedSolar raw data drop directory needs to conform to the following directory structure/naming convention (the top level drop directory name refers to the date of the drop):
 
