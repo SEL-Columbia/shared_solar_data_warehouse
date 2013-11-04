@@ -24,13 +24,13 @@ We recommend setting up a sharedsolar user on your machine, you use the followin
 useradd -p $(perl -e'print crypt("'<some_user_pwd>'", "<seed>")') -s "/bin/bash" -U -m -G sudo sharedsolar
 ```
 
-Log back in as the sharedsolar and setup the repo on your machine:  
+Log back in as the sharedsolar user and setup the repo on your machine:  
 
 ```
 git clone git@github.com:modilabs/shared_solar_data_warehouse.git
 ```
 
-Next, as user <tt>postgres</tt> create the database and the sharedsolar role/user:
+Next, as user <tt>postgres</tt> create the sharedsolar role and database:
 
 ```
 # login as postgres
