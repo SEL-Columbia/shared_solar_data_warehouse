@@ -10,12 +10,24 @@ This repository contains tools for assembling, loading, cleaning and aggregating
 Installation
 ------------
 
-The current version is based on <a href="http://www.postgresql.org/" target="_blank">postgresql</a> and <a href="http://initd.org/psycopg/" target="_blank">psycopg</a> with <a href="http://python.org/" target="_blank">python</a>.
+The current version depends on python to process the raw log files and postgresql to store the processed data.  
 
-For ubuntu/debian, use the following standard packages as root or sudo:
+For ubuntu/debian, use apt-get to install the following packages:
 
 ```
 sudo apt-get -y install git python-all-dev postgresql postgresql-contrib libicu-dev
+```
+
+We recommend setting up a sharedsolar user on your machine, you use the following command to do so:
+
+```
+useradd -p $(perl -e'print crypt("'<some_user_pwd>'", "<seed>")') -s "/bin/bash" -U -m -G sudo sharedsolar
+```
+
+Log back in as the sharedsolar and setup the repo on your machine:  
+
+```
+git clone git@github.com:modilabs/shared_solar_data_warehouse.git
 ```
 
 Next, as user <tt>postgres</tt> create the database and the sharedsolar role/user:
@@ -50,10 +62,7 @@ $ psql -d [database_name_goes_here] -U [authorized_user_goes_here] < sql/tables.
 If successful, you should see:
 
 ```
-NOTICE:  CREATE TABLE / PRIMARY KEY will create implicit index "circuit_pkey" for table "circuit"
-NOTICE:  CREATE TABLE / UNIQUE will create implicit index "circuit_machine_id_site_id_ip_addr_key" for table "circuit"
 CREATE TABLE
-NOTICE:  CREATE TABLE / PRIMARY KEY will create implicit index "power_reading_pkey" for table "power_reading"
 CREATE TABLE
 ```
 
@@ -65,42 +74,38 @@ SharedSolar "raw" usage data consists of power meter data (i.e. watts, watt_hour
 The basic workflow for loading data is:
 
 > SharedSolar Raw Data Drop (individual circuit hour log files)  
-> |  
 > v  
 > Assemble into CSV (via python denormalize_to_csv.py script)  
-> |  
 > v  
 > Load into Postgresql database (via bulk load "copy")  
-> |  
 > v  
 > De-duplicate and clean data (via sql scripts)  
-> |  
 > v  
 > Aggregate data into minutely, hourly and daily resolution tables (via sql)  
 
 This workflow is encapsulated by the processor/load_script.sh which assumes the following folder structure in addition to what is in this repository:
 
 > shared_solar_data_warehouse (THIS repo...i.e. the PROJECT_DIR)  
-> \  
->  load (this is where the SharedSolar raw data drops to be loaded go)  
-> \  
->  processed (this is where the files that have been processed go)  
+> $PROJECT_DIR\load (this is where the SharedSolar raw data drops to be loaded go)  
+> $PROJECT_DIR\processed (this is where the files that have been processed go)  
 
 The SharedSolar raw data drop directory needs to conform to the following directory structure/naming convention (the top level drop directory name refers to the date of the drop):
 
 ```
-/[YYYYMMDD]/[site id]/[YYYY]/[MM]/[DD]/[HH]/[circuit ip address].log
+[YYYYMMDD]/[site id]/[YYYY]/[MM]/[DD]/[HH]/[circuit ip address].log
 ```
-
-If the log loader run is successful, the <tt>$loader_log</tt> will be empty.
 
 Assuming the database and dependencies have been setup as in the Installation section of this document, you can run a load via:
 
 ```
-    ./processor/load_drop.sh [database_name] > load.log 2> error.log
+./processor/load_drop.sh [database_name] > load.log 2> error.log
 ```
 
-Depending on the amount of data to be loaded and amount of data already in the database, this may take some time (~20 hours for 200 million records)
+Depending on the amount of data to be loaded, data already in the database and the computing resources available, this may take some time (~20 hours for 200 million records).
+
+Any errors that occur during the load should halt the process and be output to stderr (or in error.log if command from above is used).  
+
+All files originally in the load directory should be moved to the processed directory once they are no longer needed.  This should allow you to resume the load from where it left off if something fails.  
 
 Once loaded, you can query the data either from the cleaned full resolution table, circuit_reading, or any of the aggregated resolution tables, circuit_reading_minutely, circuit_reading_hourly and circuit_reading_daily.
 
@@ -114,32 +119,4 @@ select site_id, ip_addr, count(*) num_records, sum(watt_hours_delta) sum_watt_ho
 select avg(watt_hours_delta) avg_watt_hours from circuit_reading_daily where site_id='ug01' and ip_addr='192_168_1_202';
 ```
 
-Running the Log Loader
-----------------------
-
-From a command-line prompt, go to the <tt>processor</tt> folder in this repo.
-
-Next, locate the root folder containing the Shared Solar log csv files you wish to parse and load into the database.
-
-If the log files are in <tt>/var/log/shared_solar/sd_logs/</tt> run this command:
-
-```
-$ python log_loader.py /var/log/shared_solar/sd_logs/
-```
-
-Since the log loader reports bad data through standard error, it is recommended to capture both streams into a separate file:
-
-```
-$ run_date=`date +"%b_%d_%Y_%H%M%S" --utc`
-$ loader_log=`echo ${run_date}-load.log`
-$ python log_loader.py /var/log/shared_solar/sd_logs/ > $loader_log 2>&1
-```
-
-The log loader expects that all the folders and individual circuit log files under the designated root folder have this structure:
-
-```
-/[site id]/[YYYY]/[MM]/[DD]/[HH]/[circuit ip address].log
-```
-
-If the log loader run is successful, the <tt>$loader_log</tt> will be empty.
 
