@@ -53,6 +53,15 @@ for drop_dir in `find $load_dir -maxdepth 1 -mindepth 1 -type d`; do
     mv $drop_dir $processed_dir
 done
 
+# DROP raw_circuit_reading index prior to loading (to speed up load)
+echo "`date +"%Y%m%d %H%M%S"`: DROP INDEX on raw_circuit_reading table..."
+psql -v ON_ERROR_STOP=1 -d $database < $sql_dir/drop_raw_index.sql
+
+if [ "$?" -ne 0 ]; 
+then 
+  echo "`date +"%Y%m%d %H%M%S"`: Dropping index on raw_circuit_reading table failed, exiting"; exit 1;
+fi
+
 echo "`date +"%Y%m%d %H%M%S"`: Loading denormalized csvs into postgres..."
 for csv_file in `find $load_dir -maxdepth 1 -mindepth 1 -type f -name '*.csv'`; do
     echo "`date +"%Y%m%d %H%M%S"`: Loading denormalized csv $csv_file into raw_circuit_reading table..."
@@ -73,7 +82,16 @@ HERE
     mv $csv_file $processed_dir
 done
 
-# This might be a good place to index the raw data to speed up de-dup
+# Index raw_circuit_reading to speed up de-dup
+echo "`date +"%Y%m%d %H%M%S"`: Index raw_circuit_reading table..."
+psql -v ON_ERROR_STOP=1 -d $database < $sql_dir/index_raw_circuit_reading.sql
+
+if [ "$?" -ne 0 ]; 
+then 
+  echo "`date +"%Y%m%d %H%M%S"`: Indexing raw_circuit_reading table failed, exiting"; exit 1;
+fi
+
+# De-dup
 echo "`date +"%Y%m%d %H%M%S"`: de-duplicate raw table and loading circuit_reading table..."
 psql -v ON_ERROR_STOP=1 -d $database < $sql_dir/de_dup.sql
 
@@ -81,6 +99,16 @@ if [ "$?" -ne 0 ];
 then 
   echo "`date +"%Y%m%d %H%M%S"`: loading circuit_reading table failed, exiting"; exit 1;
 fi
+
+# Index circuit_reading to speed up filter
+echo "`date +"%Y%m%d %H%M%S"`: Index circuit_reading table..."
+psql -v ON_ERROR_STOP=1 -d $database < $sql_dir/index_circuit_reading.sql
+
+if [ "$?" -ne 0 ]; 
+then 
+  echo "`date +"%Y%m%d %H%M%S"`: Indexing circuit_reading table failed, exiting"; exit 1;
+fi
+
 
 echo "`date +"%Y%m%d %H%M%S"`: cleaning circuit_reading table..."
 psql -v ON_ERROR_STOP=1 -d $database < $sql_dir/filter.sql

@@ -6,6 +6,10 @@
 delete from circuit_reading;
 ALTER TABLE circuit_reading DROP CONSTRAINT IF EXISTS circuit_reading_pkey;
 
+-- HACK:  Make table scans prohibitively expensive in order to 
+-- use index scan
+SET enable_seqscan=false;
+
 INSERT
 INTO circuit_reading 
 SELECT
@@ -23,4 +27,7 @@ FROM
     FROM raw_circuit_reading) raw 
 WHERE raw.row_num=1;
 
-ALTER TABLE circuit_reading ADD CONSTRAINT circuit_reading_pkey PRIMARY KEY (site_id, ip_addr, time_stamp);
+-- HACK-END: Allow table scans again
+SET enable_seqscan=true;
+
+
