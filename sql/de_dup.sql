@@ -22,7 +22,7 @@ SELECT
 FROM
   (SELECT 
     *, 
-    row_number() over (PARTITION BY site_id, ip_addr, machine_id, time_stamp 
+    row_number() over (PARTITION BY site_id, ip_addr, time_stamp 
                        ORDER BY line_num) row_num 
     FROM raw_circuit_reading) raw 
 WHERE raw.row_num=1;
