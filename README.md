@@ -119,4 +119,9 @@ select site_id, ip_addr, count(*) num_records, sum(watt_hours_delta) sum_watt_ho
 select avg(watt_hours_delta) avg_watt_hours from circuit_reading_daily where site_id='ug01' and ip_addr='192_168_1_202';
 ```
 
+To output the results of a query to a csv you can use a command like the following:  
+```
+psql -d sharedsolar -A -F, -c "select * from circuit_reading;" > circuit_reading.csv
+```
+
 
