@@ -1,0 +1,39 @@
+%  Creating a Quick Report with knitr, xtable, R Markdown, Pandoc (and some OpenBLAS Benchmark Results)
+
+# Summary of data
+
+The following is an analysis of readings and outliers of SharedSolar 
+energy consumption data grouped by site and month.  
+
+The sql used to generate the input file can be found in the 
+[shared_solar_data_warehouse/sql](https://github.com/SEL-Columbia/shared_solar_data_warehouse/tree/master/sql)
+repository.  
+
+# Set up the data
+
+Load the csv and filter out all non-site level rows
+
+```{r echo=TRUE, message=FALSE, results='asis', prompt=FALSE, dpi=600}
+reads_outs <- read.csv('reads_outliers_monthly.csv')
+
+reads_outs <- subset(reads_outs, ip_addr=='192_168_1_200')
+
+reads_outs$month_as_date <- as.Date(reads_outs$time_stamp)
+reads_outs$outs_percent <- reads_outs$outliers / reads_outs$readings
+
+reads_outs <- subset(reads_outs, month_as_date > as.Date('2011-01-01'))
+```
+
+# Plot the outliers and % outliers of total
+
+```{r echo=FALSE, message=FALSE, results='asis', prompt=FALSE, dpi=600, fig.width=8, fig.height=5, fig.cap="Benchmark Results Comparison"}
+                                 
+library(ggplot2)
+library(scales)
+ggplot(data = reads_outs, aes(month_as_date, fill = site_id)) + 
+  geom_bar(aes(weight=outs_percent)) + 
+  scale_x_date(labels=date_format("%b/%y")) +
+  xlab("Month") +
+  ylab("Percent Outliers of Total")
+
+```
