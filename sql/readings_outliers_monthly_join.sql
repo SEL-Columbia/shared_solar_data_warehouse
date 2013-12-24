@@ -1,0 +1,1 @@
+select reads.site_id, reads.ip_addr, reads.ct readings, coalesce(outs.ct, 0) outliers, reads.time_stamp from tmp_circuit_readings_by_month reads left join tmp_circuit_outliers_by_month outs on reads.site_id=outs.site_id and reads.ip_addr=outs.ip_addr and reads.time_stamp=outs.time_stamp;
