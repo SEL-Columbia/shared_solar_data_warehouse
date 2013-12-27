@@ -16,7 +16,7 @@ Load the csv and filter out all non-site level rows
 ```{r echo=TRUE, message=FALSE, results='asis', prompt=FALSE, dpi=600}
 reads_outs <- read.csv('reads_outliers_monthly.csv')
 
-reads_outs <- subset(reads_outs, ip_addr=='192_168_1_200')
+reads_outs <- subset(reads_outs, ip_addr=='192_168_1_200' & !(site_id %in% c('ug01', 'ug02', 'ug05')))
 
 reads_outs$month_as_date <- as.Date(reads_outs$time_stamp)
 reads_outs$outs_percent <- reads_outs$outliers / reads_outs$readings
