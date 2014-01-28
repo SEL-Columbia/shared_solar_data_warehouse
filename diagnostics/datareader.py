@@ -11,6 +11,7 @@ con = psql.connect(dbname="sharedsolar",
                  user="sharedsolar")
 #Setting up a namedcursor to enable lazy loading
 
+#query for the data processing task
 query = "SELECT * from raw_circuit_reading ORDER BY site_id, ip_addr,time_stamp;"
 
 cur = con.cursor("First")
@@ -20,7 +21,6 @@ try:
 except Exception as e:
     print e.pgerror
 print "Lazy load cursor complete"
-
 
 
 def lazyLoad(query=query, con=con):
@@ -33,49 +33,46 @@ def lazyLoad(query=query, con=con):
         print e.pgerror
     print "Lazy load complete"
     return cur
-    
-def processOutput(cur, tune, process_batch):
+
+def processOutput(cur, tune, process_batch, history_init=None, final_commit=None):
     #cur is a namedcursor to the output- tune is a tuning parameter to determine how many lines
     #are to be read from the table in one operation. 
     try:
         batch = cur.fetchmany(tune)
-        filterdict = collections.defaultdict()        
+        history = history_init()
         while(batch!=[]):
             #Get a 'tune' number of entries from the DB
-            process_batch(batch)
-            batch  = cur.fetchmany(1000)
+            history = process_batch(batch,history)
+            batch  = cur.fetchmany(tune)
+        """
+        Execution of query traversal complete
+        Now executing final commit
+        """
+        if (final_commit!=None):
+            final_commit(history)
 
     except Exception as e:
         raise e 
 
-def process_batch(batch):
-    return
-
-
+def history_init():
+    history = {}
+    history["maxlines"] = 261014681
+    #Computed via SELECT count(*); on the database
+    history["linecount"] =0
+    history["count"] = 0
+    history["wattanomalies"]= 0
+    history["prev"] = -float("inf")
+    history["prevc"] = float("inf")
+    history["prev_one"] = None
+    history["thousand"] = ['Initialized']
+    history["dic"] = collections.defaultdict(list)
+    return history
     
-dic = collections.defaultdict(list)
-
-#Iterate over results
-
-maxlines = 261014681 #Computed via SELECT count(*); on the database
-linecount =0
-count = 0
-wattanomalies= 0
-prev = -float("inf")
-prevc = float("inf")
-prev_one = None
-thousand = ['Initialized']
-
-print "Iterating..."
-
-try:
-    while(thousand!=[]):
-        #Get a thousand entries from the DB
-        thousand = cur.fetchmany(1000)
-        for one in thousand:
+def process_batch(batch,history=None):
+    for one in batch:
             #print len(one)
             if len(one)==10:
-                linecount +=1
+                history["linecount"] +=1
                 site_id = one[2]
                 machine_id = one[3]
                 ip = one[4]
@@ -83,60 +80,55 @@ try:
                 watt_hours = one[8]
                 credit = one[9]
                 #print "linecount: ", linecount, "site_id", site_id, "machine_id", machine_id, "ip", ip, "watt_hour", watt_hours, "credit", credit
-                if linecount%1000000==0:
-                    print linecount/1000000, "Million lines parsed"
-                    print "Passed:", linecount
+                if history["linecount"]%1000000==0:
+                    print history["linecount"]/1000000, "Million lines parsed"
+                    print "Passed:", history["linecount"]
                 if watt_hours<prev:
-                    if prev_one[3]==one[3] and prev_one[4]==one[4] and prev_one[2]==one[2]:
-                        wattanomalies+=1
+                    if history["prev_one"][3]==one[3] and history["prev_one"][4]==one[4] and history["prev_one"][2]==one[2]:
+                        history["wattanomalies"]+=1
                         f = open("results.txt",'a')
-                        text = "watt_hours anomaly - current: "+str(watt_hours)+" prev-: "+str(prev)+  ' at line: '+str(linecount) + " Credits prev: "+ str(prevc)+" curr: "+ str(credit)+ '\n'
+                        text = "watt_hours anomaly - current: "+str(watt_hours)+" prev-: "+str(history["prev"])+  ' at line: '+str(history["linecount"]) + " Credits prev: "+ str(history["prevc"])+" curr: "+ str(credit)+ '\n'
                         f.write(text)
                         f.close()
                 #Resetting prev
-                prev = watt_hours
-                prevc = credit
-                prev_one = one
+                history["prev"] = watt_hours
+                history["prevc"] = credit
+                history["prev_one"] = one
                 #print dic[(site_id,ip)]
                 #print machine_id 
                 #print machine_id in dic[(site_id,ip)]
                 inDic = False
-                for tup in dic[(site_id,ip)]:
+                for tup in history["dic"][(site_id,ip)]:
                     if machine_id == tup[0]:
                         inDic = True
                         break
                 if not inDic:
-                    dic[(site_id,ip)] += [(machine_id,timestamp)] 
-                    if len(dic[(site_id,ip)])>1:
+                    history["dic"][(site_id,ip)] += [(machine_id,timestamp)] 
+                    if len(history["dic"][(site_id,ip)])>1:
                         count+=1
-                        print "Count:", count, linecount, len(dic)
+                        print "Count:", history["count"], history["linecount"], len(history["dic"])
                         f = open("results.txt",'a')
-                        text = "count: "+ str(count)+'at line: '+str(linecount) + " Unique IDs: "+ str(len(dic))+ '\n'
+                        text = "count: "+ str(history["count"])+'at line: '+str(history["linecount"]) + " Unique IDs: "+ str(len(history["dic"]))+ '\n'
                         f.write(text)
                         f.close()
                         f = open("dict.dat",'w')
-                        pickle.dump(dic,f)
+                        pickle.dump(history["dic"],f)
                         f.close()   
             
-        f = open("stats.txt",'w')
-        str1 = "Length of Site_id, IP Pairs:" + str(len(dic)) +'\n'
-        pickle.dump(dic,open("dict.dat",'w'))
-        str2 = "Number of lines parsed: "+ str(linecount) +'\n'
-        str3 = "Number of switch anomalies encountered: " + str(count) + '\n'
-        str4 = "Number of watt decrease anomalies encountered:"+ str(wattanomalies)+'\n'
-        f.write(str1+str2+str3+str4)
-        f.close()
-            
+    return history
 
-except Exception as e:
-    print "Exception occurred at line", linecount
-    print "Exception details", type(e), e
+def final_commit(history):
     f = open("stats.txt",'w')
-    str1 = "Length of Site_id, IP Pairs:" + str(len(dic)) +'\n'
-    pickle.dump(dic,open("dict.dat",'w'))
-    str2 = "Number of lines parsed: "+ str(linecount) +'\n'
-    str3 = "Number of switch anomalies encountered: " + str(count) + '\n'
-    str4 = "Number of watt decrease anomalies encountered:"+ str(wattanomalies)+'\n'
-    str4 += "Excepted output"
-    f.write(str1+str2+str3+str4)
+    strbuilder = ""
+    strbuilder += "Length of Site_id, IP Pairs:" + str(len(history["dic"])) +'\n'
+    pickle.dump(history["dic"],open("dict.dat",'w'))
+    strbuilder += "Number of lines parsed: "+ str(history["linecount"]) +'\n'
+    strbuilder += "Number of switch anomalies encountered: " + str(history["count"]) + '\n'
+    strbuilder += "Number of watt decrease anomalies encountered:"+ str(history["wattanomalies"])+'\n'
+    f.write(strbuilder)
     f.close()
+
+"""
+Run the code
+"""
+processOutput(cur, tune, process_batch, history_init, final_commit)
