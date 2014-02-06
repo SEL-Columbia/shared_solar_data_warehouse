@@ -1,6 +1,7 @@
 import psycopg2 as psql
 import collections
 import cPickle as pickle
+from pylib import timed
 
 #Script to find instances where the machine_id changes
 
@@ -133,4 +134,5 @@ def final_commit(history):
 Run the code
 """
 print "Running test on query", query
-processOutput(cur, tune, process_batch, history_init, final_commit)
+timedProcessOutput = timed(processOutput)
+timedProcessOutput(cur, tune, process_batch, history_init, final_commit)
