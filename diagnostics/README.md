@@ -19,10 +19,10 @@ The code has recently been refactored- the processing task has been redesigned a
   A csv with the following fields (specific to shared_solar_data_warehouse):
   site_id, ip, timestamp, outlier_code, outlier_specifics
   
-  <br><i>outlier_specifics</i>:  key_value pairs with outlier specific values
+  <i>outlier_specifics</i>:  key_value pairs with outlier specific values
   
 <b>Outlier Definitions:
-OUTLIER_WATT_HOUR_DECREASE:</b>
+<br>OUTLIER_WATT_HOUR_DECREASE:</b>
   Circuit's watt hours decrease from previous timestamp (it's a cumulative value)
   <br><i>outlier_specifics</i>:  decrease=$amount_of_decrease
   
