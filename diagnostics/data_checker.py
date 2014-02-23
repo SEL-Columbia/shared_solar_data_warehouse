@@ -129,6 +129,8 @@ def UniqueMachineIDQuery():
 
 
                     """
+                    Key for the mappings of different parameters in each row of the Database
+                    
                     drop id = row[1] ;      site_id = row[2]
                     machine_id = row[3] ;   ip = row[4]
                     circuit_type = row[5];  timestamp = row[6]
