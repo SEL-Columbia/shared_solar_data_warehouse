@@ -12,6 +12,7 @@ con = psql.connect(dbname="sharedsolar",
 #query for the data processing task
 query = "SELECT * from raw_circuit_reading ORDER BY site_id, ip_addr,time_stamp;"
 
+"""
 cur = con.cursor("First")
 try: 
     cur.execute(query)
@@ -19,7 +20,7 @@ try:
 except Exception as e:
     print e.pgerror
 print "Lazy load cursor complete"
-
+"""
 
 def lazyLoad(query=query, con=con):
     #Setting up a namedcursor to enable lazy loading
@@ -29,7 +30,7 @@ def lazyLoad(query=query, con=con):
         #Now the result is loaded (supposedly)
     except Exception as e:
         print e.pgerror
-    print "Lazy load complete"
+    print "Lazy loading Cursor initialized"
     return cur
 
 def processOutput(query, process_batch, history_init=None, final_commit=None, batchsize=10000):
@@ -41,8 +42,10 @@ def processOutput(query, process_batch, history_init=None, final_commit=None, ba
     data in memory, which in turn means that more 
     """
     cur = lazyLoad(query)
-    try:
-        batch = cur.fetchmany(tune)
+    
+    #try:
+    if True:
+        batch = cur.fetchmany(batchsize)
         history = history_init()
         while(batch!=[]):
             #Get a 'batchsize' number of entries from the DB
@@ -54,13 +57,11 @@ def processOutput(query, process_batch, history_init=None, final_commit=None, ba
         """
         if (final_commit!=None):
             final_commit(history)
+    return 
 
-    except Exception as e:
-        raise e 
-
-
+"""
 headings = ['drop_id','line_num','site_id','machine_id','ip_addr','circuit_type','time_stamp','watts','watt_hours','credit']
-
+"""
 
 """
 These functions are for the first query
@@ -112,6 +113,11 @@ def UniqueMachineIDQuery():
         
         history["thousand"] = ['Initialized']
         history["dic"] = collections.defaultdict(list)
+
+        """
+        Erase the contents of  resultsfile
+        """
+        open(resultsfile,'w').close()
         return history
     
     def process_batch(batch,history=None):
@@ -140,7 +146,7 @@ def UniqueMachineIDQuery():
                                     "Million lines parsed")
                         print "Passed:", history["linecount"]
 
-                    if watt_hours<prev:
+                    if watt_hours<history["prev_row"][8]:
                         """
                         Following check to make sure the two roles belong to the same class and that there is no
                         transition.
@@ -163,7 +169,7 @@ def UniqueMachineIDQuery():
                                     " Credits prev: "+ str(history["prevc"])+
                                     " curr: "+ str(credit)+ '\n')
                             """
-                            text =  (site_id + "," + ip + "," + timestamp + ","
+                            text =  (site_id + "," + ip + "," + str(timestamp) + ","
                                      + watthours_anomaly + ","
                                      + " decrease=" + str(history["prev_row"][8]-watt_hours) + '\n')
                             f.write(text)
@@ -186,16 +192,16 @@ def UniqueMachineIDQuery():
                     if not inDic:
                         history["dic"][(site_id,ip)] += [(machine_id,timestamp)] 
                         if len(history["dic"][(site_id,ip)])>1:
-                            count+=1
+                            history['count']+=1
                             print "Count:", history["count"], history["linecount"], len(history["dic"])
                             f = open(resultsfile,'a')
                             #Picks the last machine from the list stored in history["dic"]
                             to_machine = history["dic"][(site_id,ip)][-1][0]
                             from_machine = history["dic"][(site_id,ip)][-2][0]
                             #text = "count: "+ str(history["count"])+'at line: '+str(history["linecount"]) + " Unique IDs: "+ str(len(history["dic"]))+ '\n'
-                            text =  (site_id + "," + ip + "," + timestamp + ","
+                            text =  (site_id + "," + ip + "," + str(timestamp) + ","
                                      + machineswap_anomaly + ","
-                                     + "from_machine="+ from_machine +" "+ "to_machine="+ to_machine + '\n')
+                                     + "from_machine="+ str(from_machine) +" "+ "to_machine="+ str(to_machine) + '\n')
 
                             f.write(text)
                             f.close()
@@ -221,7 +227,8 @@ def UniqueMachineIDQuery():
 
 
 """
-Run the code
+Run the code (Only if the file is executed directly)
 """
-query, history_init, process_batch, final_commit = UniqueMachineIDQuery()
-processOutput(query, process_batch, history_init, final_commit)
+if __name__=="__main__":
+    query, history_init, process_batch, final_commit = UniqueMachineIDQuery()
+    processOutput(query, process_batch, history_init, final_commit)
