@@ -15,23 +15,23 @@ The code has recently been refactored- the processing task has been redesigned a
 3) A init function that initializes the history dictionary
 
 
-General Outlier Output Format:
+<b>General Outlier Output Format:</b>
   A csv with the following fields (specific to shared_solar_data_warehouse):
   site_id, ip, timestamp, outlier_code, outlier_specifics
   
   outlier_specifics:  key_value pairs with outlier specific values
   
-Outlier Definitions:
-OUTLIER_WATT_HOUR_DECREASE:  
+<b>Outlier Definitions:
+OUTLIER_WATT_HOUR_DECREASE:</b>
   Circuit's watt hours decrease from previous timestamp (it's a cumulative value)
-  outlier_specifics:  decrease=$amount_of_decrease
+  <i>outlier_specifics</i>:  decrease=$amount_of_decrease
   
-OUTLIER_MACHINE_SWAP:  
+<b>OUTLIER_MACHINE_SWAP:</b>
   Circuit's machine id changes from previous timestamp
-  output_specifics:  from_machine=$from_machine, to_machine=$to_machine
+  <i>output_specifics</i>:  from_machine=$from_machine, to_machine=$to_machine
   
-OUTLIER_ROLLING_THREE_SIGMA:
+<b>OUTLIER_ROLLING_THREE_SIGMA:</b>
   Circuit's watts value for this record are outside of 3 std deviations from the mean of the nearest
   k records (ordered by timestamp)
-  output_specifics:  mean=$mean, std_deviation=$std, value=$watts
+  <i>output_specifics</i>:  mean=$mean, std_deviation=$std, value=$watts
   
