@@ -34,17 +34,22 @@ def lazyLoad(query=query, con=con):
     print "Lazy load complete"
     return cur
 
-def processOutput(query, tune, process_batch, history_init=None, final_commit=None):
-    #cur is a namedcursor to the output- tune is a tuning parameter to determine how many lines
-    #are to be read from the table in one operation.
+def processOutput(query, process_batch, history_init=None, final_commit=None, batchsize=10000):
+    """
+    cur is a namedcursor to the output- batchsize is a tuning parameter to determine how many lines
+    are to be read from the table in one operation.
+
+    "batchsize" can be used as a tuning parameter - increasing it means storing a larger chunk of the
+    data in memory, which in turn means that more 
+    """
     cur = lazyLoad(query)
     try:
         batch = cur.fetchmany(tune)
         history = history_init()
         while(batch!=[]):
-            #Get a 'tune' number of entries from the DB
+            #Get a 'batchsize' number of entries from the DB
             history = process_batch(batch,history)
-            batch  = cur.fetchmany(tune)
+            batch  = cur.fetchmany(batchsize)
         """
         Execution of query traversal complete
         Now executing final commit
@@ -65,6 +70,12 @@ Details:
 - Query finds the number of instances in which the MachineIDs of of the DB were changed.
 - Naming conventions for the query functions have not yet been decided
 - Also considering using the 'Factory' design pattern to abstract the generation of histories.
+
+Structure:
+query: The SQL query this class is operating on
+
+history: A dictionary/defaultdictionary containing useful metadata from previous passes of the data 
+
 """
 def UniqueMachineIDQuery():
     """
@@ -155,4 +166,4 @@ def UniqueMachineIDQuery():
 Run the code
 """
 query, history_init, process_batch, final_commit = UniqueMachineIDQuery()
-processOutput(query, tune, process_batch, history_init, final_commit)
+processOutput(query, process_batch, history_init, final_commit)

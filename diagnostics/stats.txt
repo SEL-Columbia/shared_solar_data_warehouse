@@ -1,4 +1,0 @@
-Length of Site_id, IP Pairs:83
-Number of lines parsed: 261014681
-Number of switch anomalies encountered: 74
-Number of watt decrease anomalies encountered:95064
