@@ -13,16 +13,6 @@ con = psql.connect(dbname="sharedsolar",
 #query for the data processing task
 query = "SELECT * from raw_circuit_reading ORDER BY site_id, ip_addr,time_stamp;"
 
-"""
-cur = con.cursor("First")
-try: 
-    cur.execute(query)
-    #Now the result is loaded (supposedly)
-except Exception as e:
-    print e.pgerror
-print "Lazy load cursor complete"
-"""
-
 def lazyLoad(query=query, con=con):
     #Setting up a namedcursor to enable lazy loading
     cur = con.cursor("First")
@@ -43,21 +33,18 @@ def processOutput(query, process_batch, history_init=None, final_commit=None, ba
     data in memory, which in turn means that more 
     """
     cur = lazyLoad(query)
-    
-    #try:
-    if True:
-        batch = cur.fetchmany(batchsize)
-        history = history_init()
-        while(batch!=[]):
-            #Get a 'batchsize' number of entries from the DB
-            history = process_batch(batch,history)
-            batch  = cur.fetchmany(batchsize)
+    batch = cur.fetchmany(batchsize)
+    history = history_init()
+    while(batch!=[]):
+        #Get a 'batchsize' number of entries from the DB
+        history = process_batch(batch,history)
+        batch  = cur.fetchmany(batchsize)
         """
         Execution of query traversal complete
         Now executing final commit
         """
-        if (final_commit!=None):
-            final_commit(history)
+    if (final_commit!=None):
+        final_commit(history)
     return 
 
 """
@@ -139,6 +126,8 @@ def UniqueMachineIDQuery():
 
 
                     """
+                    Key for the mappings of different parameters in each row of the Database
+                    
                     drop id = row[1] ;      site_id = row[2]
                     machine_id = row[3] ;   ip = row[4]
                     circuit_type = row[5];  timestamp = row[6]
@@ -179,12 +168,15 @@ def UniqueMachineIDQuery():
                                     " Credits prev: "+ str(history["prevc"])+
                                     " curr: "+ str(credit)+ '\n')
                             """
-                            text +=  (site_id + "," + ip + "," + str(timestamp) + ","
+                            
+                            text =  (site_id + "," + ip + "," + str(timestamp) + ","
+
                                      + watthours_anomaly + ","
                                      + " decrease=" + str(history["prev_row"][8]-watt_hours) + '\n')
                             #f.write(text)
                             #f.close()
                                      
+
                     history["prev_row"] = row
 
                     inDic = False
@@ -193,21 +185,26 @@ def UniqueMachineIDQuery():
                         if machine_id == tup[0]:
                             inDic = True
                             break
+
                     if inDic:
                         history["dic"][(site_id,ip)] += [(machine_id,timestamp)] 
-                        if len(history["dic"][(site_id,ip)]):
+                        if len(history["dic"][(site_id,ip)]): 
                             history['count']+=1
+                            
                             print "Count:", history["count"], history["linecount"], len(history["dic"])
                             #f = open(resultsfile,'a')
                             #Picks the last machine from the list stored in history["dic"]
-                            to_machine = history["dic"][(site_id,ip)][-1][0]
+                            
+                            to_machine   = history["dic"][(site_id,ip)][-1][0]
                             from_machine = history["dic"][(site_id,ip)][-2][0]
-                            text +=  (site_id + "," + ip + "," + str(timestamp) + ","
+                            
+                            #text = "count: "+ str(history["count"])+'at line: '+str(history["linecount"]) + " Unique IDs: "+ str(len(history["dic"]))+ '\n'
+                            
+                            text =  (site_id + "," + ip + "," + str(timestamp) + ","
                                      + machineswap_anomaly + ","
                                      + "from_machine="+ str(from_machine) +" "+ "to_machine="+ str(to_machine) + '\n')
 
                             
-        #Batch file_write goes here
         f = open(resultsfile,'a')
         f.write(text)
         f.close()
