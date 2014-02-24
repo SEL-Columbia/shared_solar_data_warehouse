@@ -1,6 +1,7 @@
 import psycopg2 as psql
 import collections
 import cPickle as pickle
+from pylib import *
 
 #Script to find instances where the machine_id changes
 
@@ -105,11 +106,20 @@ def UniqueMachineIDQuery():
         history["prevc"] = float("inf")
 
         history["prev_row"] = [None, None, None, None, None, None, None, -float("inf"), float("inf")]
+        
         """
         The 'prev_row' key stores an entire row of values in format
         headings = ['drop_id','line_num','site_id','machine_id','ip_addr','circuit_type','time_stamp','watts','watt_hours','credit']
         """
-
+        
+        """
+        Experimental idea - replace the history list with
+        a dict for comprehensibility
+        history["prev_row"] = collections.defaultdict(int)
+        history["watt_hours"] = -float("inf")
+        history["credit"] = float("inf")
+        """
+        
         
         history["thousand"] = ['Initialized']
         history["dic"] = collections.defaultdict(list)
@@ -121,7 +131,7 @@ def UniqueMachineIDQuery():
         return history
     
     def process_batch(batch,history=None):
-        
+        text = ""
         for row in batch:
                 #print len(row)
                 if len(row)==10:
@@ -161,7 +171,7 @@ def UniqueMachineIDQuery():
                             """
                             
                             history["wattanomalies"]+=1
-                            f = open(resultsfile,'a')
+                            #f = open(resultsfile,'a')
                             """
                             text = ("watt_hours anomaly - current: "+str(watt_hours)+" prev-:"
                                     + str(history["prev"])+
@@ -169,47 +179,41 @@ def UniqueMachineIDQuery():
                                     " Credits prev: "+ str(history["prevc"])+
                                     " curr: "+ str(credit)+ '\n')
                             """
-                            text =  (site_id + "," + ip + "," + str(timestamp) + ","
+                            text +=  (site_id + "," + ip + "," + str(timestamp) + ","
                                      + watthours_anomaly + ","
                                      + " decrease=" + str(history["prev_row"][8]-watt_hours) + '\n')
-                            f.write(text)
-                            f.close()
+                            #f.write(text)
+                            #f.close()
                                      
-                    #Resetting prev
-                    #history["prev"] = watt_hours
-                    #history["prevc"] = credit
                     history["prev_row"] = row
 
-                    #print dic[(site_id,ip)]
-                    #print machine_id 
-                    #print machine_id in dic[(site_id,ip)]
-
                     inDic = False
+                    
                     for tup in history["dic"][(site_id,ip)]:
                         if machine_id == tup[0]:
                             inDic = True
                             break
-                    if not inDic:
+                    if inDic:
                         history["dic"][(site_id,ip)] += [(machine_id,timestamp)] 
-                        if len(history["dic"][(site_id,ip)])>1:
+                        if len(history["dic"][(site_id,ip)]):
                             history['count']+=1
                             print "Count:", history["count"], history["linecount"], len(history["dic"])
-                            f = open(resultsfile,'a')
+                            #f = open(resultsfile,'a')
                             #Picks the last machine from the list stored in history["dic"]
                             to_machine = history["dic"][(site_id,ip)][-1][0]
                             from_machine = history["dic"][(site_id,ip)][-2][0]
-                            #text = "count: "+ str(history["count"])+'at line: '+str(history["linecount"]) + " Unique IDs: "+ str(len(history["dic"]))+ '\n'
-                            text =  (site_id + "," + ip + "," + str(timestamp) + ","
+                            text +=  (site_id + "," + ip + "," + str(timestamp) + ","
                                      + machineswap_anomaly + ","
                                      + "from_machine="+ str(from_machine) +" "+ "to_machine="+ str(to_machine) + '\n')
 
-                            f.write(text)
-                            f.close()
-
-                            f = open("dict.dat",'w')
-                            pickle.dump(history["dic"],f)
-                            f.close()   
-            
+                            
+        #Batch file_write goes here
+        f = open(resultsfile,'a')
+        f.write(text)
+        f.close()
+        f = open("dict.dat",'w')
+        pickle.dump(history["dic"],f)
+        f.close()
         return history
 
     def final_commit(history):
@@ -229,6 +233,13 @@ def UniqueMachineIDQuery():
 """
 Run the code (Only if the file is executed directly)
 """
-if __name__=="__main__":
+
+@main
+@timed
+def mainfn():
     query, history_init, process_batch, final_commit = UniqueMachineIDQuery()
     processOutput(query, process_batch, history_init, final_commit)
+
+@timed
+def test():
+    print ("HEllO WORLD")
