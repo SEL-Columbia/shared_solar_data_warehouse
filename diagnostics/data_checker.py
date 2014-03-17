@@ -1,22 +1,15 @@
-import psycopg2 as psql
+#import psycopg2 as psql
 import collections
 import cPickle as pickle
 from pylib import *
 
 #Script to find instances where the machine_id changes
 
-#Establishes connections
-con = psql.connect(dbname="sharedsolar",
-                 user="sharedsolar")
-#Setting up a namedcursor to enable lazy loading
 
-#query for the data processing task - should eventually be encapsulated in a class along with the processing
-query = "SELECT * from raw_circuit_reading ORDER BY site_id, ip_addr,time_stamp;"
-
-def lazyLoad(query=query, con=con):
+def lazyLoad(query, con):
     #Setting up a namedcursor to enable lazy loading
     cur = con.cursor("First")
-    try: 
+    try:
         cur.execute(query)
         #Now the result is loaded (supposedly)
     except Exception as e:
@@ -24,15 +17,16 @@ def lazyLoad(query=query, con=con):
     print "Lazy loading Cursor initialized"
     return cur
 
-def processOutput(query, process_batch, history_init=None, final_commit=None, batchsize=10000):
+def processOutput(con, query, process_batch, history_init=None, final_commit=None, batchsize=10000):
     """
     cur is a namedcursor to the output- batchsize is a tuning parameter to determine how many lines
     are to be read from the table in one operation.
 
     "batchsize" can be used as a tuning parameter - increasing it means storing a larger chunk of the
-    data in memory, which in turn means that more 
+    data in memory, which in turn means that more
     """
-    cur = lazyLoad(query)
+    
+    cur = lazyLoad(query,con)
     batch = cur.fetchmany(batchsize)
     history = history_init()
     while(batch!=[]):
@@ -45,7 +39,7 @@ def processOutput(query, process_batch, history_init=None, final_commit=None, ba
         """
     if (final_commit!=None):
         final_commit(history)
-    return 
+    return
 
 """
 headings = ['drop_id','line_num','site_id','machine_id','ip_addr','circuit_type','time_stamp','watts','watt_hours','credit']
@@ -62,35 +56,36 @@ Details:
 Structure:
 query: The SQL query this class is operating on
 
-history: A dictionary/defaultdictionary containing useful metadata from previous passes of the data 
+history: A dictionary/defaultdictionary containing useful metadata from previous passes of the data
 
 """
 def UniqueMachineIDQuery():
-    
+
     """
     Naming conventions still need to be discussed.
-    Wrapping them in this class so that the general names query, history_init, process_batch and final_commit 
+    Wrapping them in this class so that the general names query, history_init, process_batch and final_commit
     can be reused with still maintaining quality.
-    
+
     I think this function can be converted into a class to incorporate more features in the future-
     Possible future structure of the class-
     - field: query
     - field: results_file
     - field: anomaly_name
     - func : history_init -> defaultdict
-    - func : sub_process (a sub_process can be called in a generalized way within 
+    - func : sub_process (a sub_process can be called in a generalized way within
     a generic process_batch function to perform processing for multiple queries simultaneously)
     - func : output_summary (renamed version of final_commit)
 
     """
+
+    query = "SELECT * from {0} ORDER BY site_id, ip_addr,time_stamp;"
     
-    query = "SELECT * from raw_circuit_reading ORDER BY site_id, ip_addr,time_stamp;"
     resultsfile = "results.txt"
     statsfile = "stats.txt"
     watthours_anomaly = "OUTLIER_WATT_HOUR_DECREASE"
     machineswap_anomaly = "OUTLIER_MACHINE_SWAP"
-    
-    
+
+
     def history_init():
         history = {}
 
@@ -98,7 +93,7 @@ def UniqueMachineIDQuery():
         history["maxlines"] = 261014681
         Computed via SELECT count(*); on the database
         """
-        
+
         history["linecount"] =0
         history["count"] = 0
         history["wattanomalies"]= 0
@@ -106,12 +101,12 @@ def UniqueMachineIDQuery():
         history["prevc"] = float("inf")
 
         history["prev_row"] = [None, None, None, None, None, None, None, -float("inf"), float("inf")]
-        
+
         """
         The 'prev_row' key stores an entire row of values in format
         headings = ['drop_id','line_num','site_id','machine_id','ip_addr','circuit_type','time_stamp','watts','watt_hours','credit']
         """
-        
+
         """
         Experimental idea - replace the history list with
         a dict for comprehensibility? Might have to be wrapped in a class
@@ -120,7 +115,7 @@ def UniqueMachineIDQuery():
         history["watt_hours"] = -float("inf")
         history["credit"] = float("inf")
         """
-        
+
         history["thousand"] = ['Initialized']
         history["dic"] = collections.defaultdict(list)
 
@@ -129,18 +124,17 @@ def UniqueMachineIDQuery():
         """
         open(resultsfile,'w').close()
         return history
-    
+
     def process_batch(batch,history=None):
         text = ""
         for row in batch:
                 #print len(row)
                 if len(row)==10:
+                    
                     history["linecount"] +=1
-
-
                     """
                     Key for the mappings of different parameters in each row of the Database
-                    
+
                     drop id = row[1] ;      site_id = row[2]
                     machine_id = row[3] ;   ip = row[4]
                     circuit_type = row[5];  timestamp = row[6]
@@ -148,74 +142,64 @@ def UniqueMachineIDQuery():
                     credit = row[9]
                     """
                     (drop_id, line_num , site_id ,
-                         machine_id, ip, circuit_type , 
+                         machine_id, ip, circuit_type ,
                              timestamp, watts, watt_hours , credit ) = row
-                    
-                    #print "linecount: ", linecount, "site_id", site_id, "machine_id", machine_id, "ip", ip, "watt_hour", watt_hours, "credit", credit
+
                     if history["linecount"]%1000000==0:
-                        
+
                         print (history["linecount"]/1000000,
                                     "Million lines parsed")
                         print "Passed:", history["linecount"]
 
                     if watt_hours<history["prev_row"][8]:
                         """
-                        Following check to make sure the two roles belong to the same class and that there is no
+                        Following check to make sure the two roles belong to
+                        the same class and that there is no
                         transition.
                         """
-                        if (history["prev_row"][3]==machine_id 
-                                and history["prev_row"][4]==ip 
+                        if (history["prev_row"][3]==machine_id
+                                and history["prev_row"][4]==ip
                                     and history["prev_row"][2]==site_id):
                             """
                             -------------------------------------
                                      <  <---------->  >
                             -------------------------------------
                             """
-                            
+
                             history["wattanomalies"]+=1
-                            """
-                            text = ("watt_hours anomaly - current: "+str(watt_hours)+" prev-:"
-                                    + str(history["prev"])+
-                                    ' at line: ' + str(history["linecount"]) +
-                                    " Credits prev: "+ str(history["prevc"])+
-                                    " curr: "+ str(credit)+ '\n')
-                            """
-                            
                             text +=  (site_id + "," + ip + "," + str(timestamp) + ","
                                      + watthours_anomaly + ","
                                      + " decrease=" + str(history["prev_row"][8]-watt_hours) + '\n')
-                            
-                                     
+
+
 
                     history["prev_row"] = row
-
+                    """Indicator boolean - indicates whether machineID has been
+                    Seen before for a given site_id/ip pair"""
                     inDic = False
-                    
-                    for tup in history["dic"][(site_id,ip)]:
+
+                    for tup in history["dic"][( site_id, ip )]:
                         if machine_id == tup[0]:
                             inDic = True
                             break
-<<<<<<< HEAD
 
                     if not inDic:
-                        history["dic"][(site_id,ip)] += [(machine_id,timestamp)] 
-                        if len(history["dic"][(site_id,ip)])>1: 
+                        history["dic"][(site_id,ip)] += [(machine_id,timestamp)]
+                        if len(history["dic"][(site_id,ip)])>1:
                             history['count']+=1
-                            
+
                             print "Count:", history["count"], history["linecount"], len(history["dic"])
                             #Picks the last machine from the list stored in history["dic"]
-                            
+
                             to_machine   = history["dic"][(site_id,ip)][-1][0]
                             from_machine = history["dic"][(site_id,ip)][-2][0]
-                            
-                            #text = "count: "+ str(history["count"])+'at line: '+str(history["linecount"]) + " Unique IDs: "+ str(len(history["dic"]))+ '\n'
-                            
+
                             text +=  (site_id + "," + ip + "," + str(timestamp) + ","
                                      + machineswap_anomaly + ","
-                                     + "from_machine="+ str(from_machine) +" "+ 
+                                     + "from_machine="+ str(from_machine) +" "+
                                      "to_machine="+ str(to_machine) + '\n')
 
-                            
+
         f = open(resultsfile,'a')
         f.write(text)
         f.close()
@@ -241,10 +225,39 @@ def UniqueMachineIDQuery():
 """
 Run the code (Only if the file is executed directly)
 """
-
+import argparse
 @main
 @timed
-def mainfn():
-    query, history_init, process_batch, final_commit = UniqueMachineIDQuery()
-    processOutput(query, process_batch, history_init, final_commit)
+def mainfn(*args):
+    #Defaults -
 
+    tableName = 'raw_circuit_reading'
+    testTableName = "raw_circuit_reading_small_test"
+    
+    """Parsing arguments"""
+    
+    parser=argparse.ArgumentParser()
+    parser.add_argument('-d','--dbname',default="sharedsolar")
+    parser.add_argument('-t','--test', default=False ,action="store_true")
+    args = parser.parse_args()
+
+    """Establishing a connection to the database"""
+
+    print "DATABASE:",args.dbname
+    con = psql.connect(dbname=args.dbname,
+                 user="sharedsolar")
+    
+    """query for the data processing task - should eventually be
+    encapsulated in a class along with the processing"""
+
+    #query = "SELECT * from raw_circuit_reading ORDER BY site_id, ip_addr,time_stamp;"
+
+    query, history_init, process_batch, final_commit = UniqueMachineIDQuery()
+    if args.test==True:
+        query=query.format(testTableName)
+    else:
+        query=query.format(tableName)
+
+    print query
+    
+    processOutput(con, query, process_batch, history_init, final_commit)
