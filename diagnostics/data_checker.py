@@ -10,7 +10,7 @@ con = psql.connect(dbname="sharedsolar",
                  user="sharedsolar")
 #Setting up a namedcursor to enable lazy loading
 
-#query for the data processing task
+#query for the data processing task - should eventually be encapsulated in a class along with the processing
 query = "SELECT * from raw_circuit_reading ORDER BY site_id, ip_addr,time_stamp;"
 
 def lazyLoad(query=query, con=con):
@@ -66,11 +66,24 @@ history: A dictionary/defaultdictionary containing useful metadata from previous
 
 """
 def UniqueMachineIDQuery():
+    
     """
     Naming conventions still need to be discussed.
-    Wrapping them in this class so that the general names query, history_init, process_batch and final_commit can be reused
-    Maintaining quality
+    Wrapping them in this class so that the general names query, history_init, process_batch and final_commit 
+    can be reused with still maintaining quality.
+    
+    I think this function can be converted into a class to incorporate more features in the future-
+    Possible future structure of the class-
+    - field: query
+    - field: results_file
+    - field: anomaly_name
+    - func : history_init -> defaultdict
+    - func : sub_process (a sub_process can be called in a generalized way within 
+    a generic process_batch function to perform processing for multiple queries simultaneously)
+    - func : output_summary (renamed version of final_commit)
+
     """
+    
     query = "SELECT * from raw_circuit_reading ORDER BY site_id, ip_addr,time_stamp;"
     resultsfile = "results.txt"
     statsfile = "stats.txt"
@@ -101,12 +114,12 @@ def UniqueMachineIDQuery():
         
         """
         Experimental idea - replace the history list with
-        a dict for comprehensibility
+        a dict for comprehensibility? Might have to be wrapped in a class
+        for easy initialization from a row of data
         history["prev_row"] = collections.defaultdict(int)
         history["watt_hours"] = -float("inf")
         history["credit"] = float("inf")
         """
-        
         
         history["thousand"] = ['Initialized']
         history["dic"] = collections.defaultdict(list)
@@ -160,7 +173,6 @@ def UniqueMachineIDQuery():
                             """
                             
                             history["wattanomalies"]+=1
-                            #f = open(resultsfile,'a')
                             """
                             text = ("watt_hours anomaly - current: "+str(watt_hours)+" prev-:"
                                     + str(history["prev"])+
@@ -170,11 +182,9 @@ def UniqueMachineIDQuery():
                             """
                             
                             text +=  (site_id + "," + ip + "," + str(timestamp) + ","
-
                                      + watthours_anomaly + ","
                                      + " decrease=" + str(history["prev_row"][8]-watt_hours) + '\n')
-                            #f.write(text)
-                            #f.close()
+                            
                                      
 
                     history["prev_row"] = row
@@ -185,6 +195,7 @@ def UniqueMachineIDQuery():
                         if machine_id == tup[0]:
                             inDic = True
                             break
+<<<<<<< HEAD
 
                     if not inDic:
                         history["dic"][(site_id,ip)] += [(machine_id,timestamp)] 
@@ -192,7 +203,6 @@ def UniqueMachineIDQuery():
                             history['count']+=1
                             
                             print "Count:", history["count"], history["linecount"], len(history["dic"])
-                            #f = open(resultsfile,'a')
                             #Picks the last machine from the list stored in history["dic"]
                             
                             to_machine   = history["dic"][(site_id,ip)][-1][0]
@@ -202,7 +212,8 @@ def UniqueMachineIDQuery():
                             
                             text +=  (site_id + "," + ip + "," + str(timestamp) + ","
                                      + machineswap_anomaly + ","
-                                     + "from_machine="+ str(from_machine) +" "+ "to_machine="+ str(to_machine) + '\n')
+                                     + "from_machine="+ str(from_machine) +" "+ 
+                                     "to_machine="+ str(to_machine) + '\n')
 
                             
         f = open(resultsfile,'a')
@@ -237,6 +248,3 @@ def mainfn():
     query, history_init, process_batch, final_commit = UniqueMachineIDQuery()
     processOutput(query, process_batch, history_init, final_commit)
 
-@timed
-def test():
-    print ("HEllO WORLD")
