@@ -169,7 +169,7 @@ def UniqueMachineIDQuery():
                                     " curr: "+ str(credit)+ '\n')
                             """
                             
-                            text =  (site_id + "," + ip + "," + str(timestamp) + ","
+                            text +=  (site_id + "," + ip + "," + str(timestamp) + ","
 
                                      + watthours_anomaly + ","
                                      + " decrease=" + str(history["prev_row"][8]-watt_hours) + '\n')
@@ -186,9 +186,9 @@ def UniqueMachineIDQuery():
                             inDic = True
                             break
 
-                    if inDic:
+                    if not inDic:
                         history["dic"][(site_id,ip)] += [(machine_id,timestamp)] 
-                        if len(history["dic"][(site_id,ip)]): 
+                        if len(history["dic"][(site_id,ip)])>1: 
                             history['count']+=1
                             
                             print "Count:", history["count"], history["linecount"], len(history["dic"])
@@ -200,7 +200,7 @@ def UniqueMachineIDQuery():
                             
                             #text = "count: "+ str(history["count"])+'at line: '+str(history["linecount"]) + " Unique IDs: "+ str(len(history["dic"]))+ '\n'
                             
-                            text =  (site_id + "," + ip + "," + str(timestamp) + ","
+                            text +=  (site_id + "," + ip + "," + str(timestamp) + ","
                                      + machineswap_anomaly + ","
                                      + "from_machine="+ str(from_machine) +" "+ "to_machine="+ str(to_machine) + '\n')
 
