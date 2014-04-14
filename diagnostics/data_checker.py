@@ -1,10 +1,18 @@
-import psycopg2 as psql
+#import psycopg2 as psql
 import collections
 import cPickle as pickle
+
+deq =  collections.deque
+
 #from pylib import *
 
 #Script to find instances where the machine_id changes
 
+history = {}
+history["window"] = deq(maxlen=10)
+history["window::sum"] = 0
+history["window::sumOfSquares"] = 0
+history["window::count"] = 0
 
 def lazyLoad(query, con):
     #Setting up a namedcursor to enable lazy loading
@@ -93,12 +101,71 @@ class UMIDQuery():
     def setDBName(self, dbname):
         self.dbname = dbname
     # -- -- Utilies end -- -- #    
+    # -- -- Window Utilities Start -- -- #
 
+    def window_add(self,history, newnum):
+        newnum = float(newnum) #Convert to float
+        maxlen = history['window'].maxlen
+        if history['window::count']<maxlen:
+            history['window::count']+=1
+            history['window::sum']+=newnum
+            history['window::sumOfSquares']+=newnum**2
+            history["window"].append(newnum)
+        else:
+            removed = history['window'][0]
+            history["window::sum"] = history["window::sum"] - removed + newnum
+            history["window::sumOfSquares"] = (history["window::sumOfSquares"]
+                                               - removed**2 + newnum**2)
+            history["window"].append(newnum)
+        return history
+            
+    def window_mean(self, window):
+        return (float(window["sum"])
+                /float(window["count"]))
+
+    def window_var(self, window):
+        #N = history["window::count"]
+        N = window["count"]
+        if N<2:
+            return 0
+        #sumOfSquares = history["window::sumOfSquares"]
+        sumOfSquares = window["sum_squares"]
+        mean = self.window_mean(window)
+        var = (sumOfSquares - N*(mean**2))/float(N-1)
+        return var**0.5
+
+    def window_refresh(self, history):
+        # Refreshing contents of 'window' to zero
+        window = { "queue": deq(maxlen=window_size)
+                   "count": 0 ,
+                   "sum"  : 0 ,
+                   "sum_squares" : 0 }
+        return window
+        
     def history_init(self):
         history = {}
         window_size = 100
         print("Initializing History")
-        history["window"] = [] #Array initialized
+
+        """
+        history["window"] = deq (maxlen=window_size) #Array initialized
+        history["window::count"] =0
+        history["window::sum"] = 0
+        history["window::sumOfSquares"] = 0
+        """
+        """
+        potential new design
+        """
+        window = { "queue": deq(maxlen=window_size)
+                   "count": 0 ,
+                   "sum"  : 0 ,
+                   "sum_squares" : 0 }
+
+        history["window"] = window
+        
+        history[window]
+        
+        
         history["linecount"] =0
         history["count"] = 0
         history["wattanomalies"]= 0
@@ -264,14 +331,26 @@ class UMIDQuery():
                  user="sharedsolar")
         processOutput(con, self.active_query, self.process_batch, self.history_init, self.final_commit)
         con.close()
-        
+
+"""
+print "Running fun stuff"
+u = UMIDQuery()
+for i in range(1000):
+ 	history = u.window_add(history,i)
+ 	print "window:", history["window"]
+ 	print "avg:", u.window_mean(history)
+ 	print "var:", u.window_var(history)
+"""
+
 
 def mainrun():
+    print "running main"
     obj =  UMIDQuery()
     obj.run()
     return
 
 mainrun()
+
 
 """
 These functions are for the first query
@@ -287,174 +366,14 @@ query: The SQL query this class is operating on
 history: A dictionary/defaultdictionary containing useful metadata from previous passes of the data
 
 """
-def UniqueMachineIDQuery():
-
-    """
-    Naming conventions still need to be discussed.
-    Wrapping them in this class so that the general names query, history_init, process_batch and final_commit
-    can be reused with still maintaining quality.
-
-    I think this function can be converted into a class to incorporate more features in the future-
-    Possible future structure of the class-
-    - field: query
-    - field: results_file
-    - field: anomaly_name
-    - func : history_init -> defaultdict
-    - func : sub_process (a sub_process can be called in a generalized way within
-    a generic process_batch function to perform processing for multiple queries simultaneously)
-    - func : output_summary (renamed version of final_commit)
-
-    """
-
-    query = "SELECT * from {0} ORDER BY site_id, ip_addr,time_stamp;"
-    resultsfile = "results.txt"
-    statsfile = "stats.txt"
-    watthours_anomaly = "OUTLIER_WATT_HOUR_DECREASE"
-    machineswap_anomaly = "OUTLIER_MACHINE_SWAP"
-
-
-    def history_init():
-        history = {}
-
-        """
-        history["maxlines"] = 261014681
-        Computed via SELECT count(*); on the database
-        """
-
-        history["linecount"] =0
-        history["count"] = 0
-        history["wattanomalies"]= 0
-        history["prev"] = -float("inf")
-        history["prevc"] = float("inf")
-
-        history["prev_row"] = [None, None, None, None, None, None, None, -float("inf"), float("inf")]
-
-        """
-        The 'prev_row' key stores an entire row of values in format
-        headings = ['drop_id','line_num','site_id','machine_id','ip_addr','circuit_type','time_stamp','watts','watt_hours','credit']
-        """
-
-        """
-        Experimental idea - replace the history list with
-        a dict for comprehensibility? Might have to be wrapped in a class
-        for easy initialization from a row of data
-        history["prev_row"] = collections.defaultdict(int)
-        history["watt_hours"] = -float("inf")
-        history["credit"] = float("inf")
-        """
-
-        history["thousand"] = ['Initialized']
-        history["dic"] = collections.defaultdict(list)
-
-        """
-        Erase the contents of  resultsfile
-        """
-        open(resultsfile,'w').close()
-        return history
-
-    def process_batch(batch,history=None):
-        text = ""
-        for row in batch:
-                #print len(row)
-                if len(row)==10:
-                    
-                    history["linecount"] +=1
-                    """
-                    Key for the mappings of different parameters in each row of the Database
-
-                    drop id = row[1] ;      site_id = row[2]
-                    machine_id = row[3] ;   ip = row[4]
-                    circuit_type = row[5];  timestamp = row[6]
-                    watts = row[7];         watt_hours = row[8]
-                    credit = row[9]
-                    """
-                    (drop_id, line_num , site_id ,
-                         machine_id, ip, circuit_type ,
-                             timestamp, watts, watt_hours , credit ) = row
-
-                    if history["linecount"]%1000000==0:
-
-                        print (history["linecount"]/1000000,
-                                    "Million lines parsed")
-                        print "Passed:", history["linecount"]
-
-                    if watt_hours<history["prev_row"][8]:
-                        """
-                        Following check to make sure the two roles belong to
-                        the same class and that there is no
-                        transition.
-                        """
-                        if (history["prev_row"][3]==machine_id
-                                and history["prev_row"][4]==ip
-                                    and history["prev_row"][2]==site_id):
-                            """
-                            -------------------------------------
-                                     <  <---------->  >
-                            -------------------------------------
-                            """
-
-                            history["wattanomalies"]+=1
-                            text +=  (site_id + "," + ip + "," + str(timestamp) + ","
-                                     + watthours_anomaly + ","
-                                     + " decrease=" + str(history["prev_row"][8]-watt_hours) + '\n')
-
-
-
-                    history["prev_row"] = row
-                    """Indicator boolean - indicates whether machineID has been
-                    Seen before for a given site_id/ip pair"""
-                    inDic = False
-
-                    for tup in history["dic"][( site_id, ip )]:
-                        if machine_id == tup[0]:
-                            inDic = True
-                            break
-
-                    if not inDic:
-                        history["dic"][(site_id,ip)] += [(machine_id,timestamp)]
-                        if len(history["dic"][(site_id,ip)])>1:
-                            history['count']+=1
-
-                            print "Count:", history["count"], history["linecount"], len(history["dic"])
-                            #Picks the last machine from the list stored in history["dic"]
-
-                            to_machine   = history["dic"][(site_id,ip)][-1][0]
-                            from_machine = history["dic"][(site_id,ip)][-2][0]
-
-                            text +=  (site_id + "," + ip + "," + str(timestamp) + ","
-                                     + machineswap_anomaly + ","
-                                     + "from_machine="+ str(from_machine) +" "+
-                                     "to_machine="+ str(to_machine) + '\n')
-
-
-        f = open(resultsfile,'a')
-        f.write(text)
-        f.close()
-        f = open("dict.dat",'w')
-        pickle.dump(history["dic"],f)
-        f.close()
-        return history
-
-    def final_commit(history):
-        f = open("stats.txt",'w')
-        strbuilder = ""
-        strbuilder += "Length of Site_id, IP Pairs:" + str(len(history["dic"])) +'\n'
-        pickle.dump(history["dic"],open("dict.dat",'w'))
-        strbuilder += "Number of lines parsed: "+ str(history["linecount"]) +'\n'
-        strbuilder += "Number of switch anomalies encountered: " + str(history["count"]) + '\n'
-        strbuilder += "Number of watt decrease anomalies encountered:"+ str(history["wattanomalies"])+'\n'
-        f.write(strbuilder)
-        f.close()
-
-    return query, history_init, process_batch, final_commit
 
 
 """
 Run the code (Only if the file is executed directly)
 """
 import argparse
-@main
-@timed
+#@main
+#@timed
 def mainfn(*args):
     #Defaults -
 
