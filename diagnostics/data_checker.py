@@ -1,4 +1,4 @@
-#import psycopg2 as psql
+import psycopg2 as psql
 import collections
 import cPickle as pickle
 #from pylib import *
@@ -75,11 +75,11 @@ class UMIDQuery():
     # -- -- Utility Function --  -- #
 
     def setTest(self):
-        self.active_query = query.format(table)
+        self.active_query = query.format(self.table)
         return
         
     def setDev(self):
-        self.active_query = query.format(testTable)
+        self.active_query = query.format(self.testTable)
         return
         
     def setResultsFile(self,filename):
@@ -97,7 +97,7 @@ class UMIDQuery():
     def history_init(self):
         history = {}
         window_size = 100
-
+        print("Initializing History")
         history["window"] = [] #Array initialized
         history["linecount"] =0
         history["count"] = 0
@@ -127,10 +127,11 @@ class UMIDQuery():
         """
         Erase the contents of  resultsfile
         """
-        open(resultsfile,'w').close()
+        open(self.resultsfile,'w').close()
         return history
 	
     def process_row_watt_reduction(self, row, history):
+        text = ""
         (drop_id, line_num , site_id ,
          machine_id, ip, circuit_type ,
          timestamp, watts, watt_hours , credit ) = row
@@ -138,7 +139,7 @@ class UMIDQuery():
             print (history["linecount"]/1000000,
                                     "Million lines parsed")
             print "Passed:", history["linecount"]
-            if watt_hours<history["prev_row"][8]:
+        if watt_hours<history["prev_row"][8]:
                 """
                 Following check to make sure the two roles belong to
                 the same class and that there is no
@@ -148,11 +149,15 @@ class UMIDQuery():
                     and history["prev_row"][2]==site_id):
                     history["wattanomalies"]+=1
                     text +=  (site_id + "," + ip + "," + str(timestamp) + ","
-                              + watthours_anomaly + "," + " decrease="
+                              + self.watthours_anomaly + "," + " decrease="
                               + str(history["prev_row"][8]-watt_hours) + '\n')
         return text, history
 
     def process_row_machineId_swap (self, row, history):
+        text = "" 
+        (drop_id, line_num , site_id ,
+         machine_id, ip, circuit_type ,
+         timestamp, watts, watt_hours , credit ) = row
         inDic = False
         for tup in history["dic"][( site_id, ip )]:
             if machine_id == tup[0]:
@@ -167,7 +172,7 @@ class UMIDQuery():
                 to_machine   = history["dic"][(site_id,ip)][-1][0]
                 from_machine = history["dic"][(site_id,ip)][-2][0]
                 text +=  (site_id + "," + ip + "," + str(timestamp) + ","
-                          + machineswap_anomaly + ","
+                          + self.machineswap_anomaly + ","
                           + "from_machine="+ str(from_machine)
                           +" "+ "to_machine="+ str(to_machine) + '\n')
         return text, history
@@ -190,16 +195,16 @@ class UMIDQuery():
                     """
 
                     #This needs to be put into a for loop
-                    temptext, history = process_row_watt_reduction(row, history)
+                    temptext, history = self.process_row_watt_reduction(row, history)
                     text+=temptext
-                    temptext, history = process_row_machineId_swap(row, history)
+                    temptext, history = self.process_row_machineId_swap(row, history)
                     text+=temptext
                     
                     history["prev_row"] = row
                     """Indicator boolean - indicates whether machineID has been
                     Seen before for a given site_id/ip pair"""
 
-        f = open(resultsfile,'a')
+        f = open(self.resultsfile,'a')
         f.write(text)
         f.close()
         f = open("dict.dat",'w')
@@ -208,7 +213,7 @@ class UMIDQuery():
         return history
 
     def final_commit(self, history):
-        f = open("stats.txt",'w')
+        f = open(self.statsfile,'w')
         strbuilder = ""
         strbuilder += "Length of Site_id, IP Pairs:" + str(len(history["dic"])) +'\n'
         pickle.dump(history["dic"],open("dict.dat",'w'))
@@ -238,29 +243,35 @@ class UMIDQuery():
     data in memory, which in turn means that more
         """
         print "Process output activated"
-        cur = lazyLoad(query,con)
+        cur = self.lazyLoad(query,con)
         batch = cur.fetchmany(batchsize)
-        history = history_init()
+        history = self.history_init()
         while(batch!=[]):
             #Get a 'batchsize' number of entries from the DB
-            history = process_batch(batch,history)
+            history = self.process_batch(batch,history)
             batch  = cur.fetchmany(batchsize)
             """
         Execution of query traversal complete
         Now executing final commit
             """
-        if (final_commit!=None):
-            final_commit(history)
+        if (self.final_commit!=None):
+            self.final_commit(history)
+        cur.close()
         return
 
     def run(self):
-        
         con = psql.connect(dbname=self.dbname,
                  user="sharedsolar")
         processOutput(con, self.active_query, self.process_batch, self.history_init, self.final_commit)
+        con.close()
         
 
+def mainrun():
+    obj =  UMIDQuery()
+    obj.run()
+    return
 
+mainrun()
 
 """
 These functions are for the first query
