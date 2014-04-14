@@ -1,4 +1,4 @@
-#import psycopg2 as psql
+import psycopg2 as psql
 import collections
 import cPickle as pickle
 from pylib import *
@@ -10,7 +10,10 @@ def lazyLoad(query, con):
     #Setting up a namedcursor to enable lazy loading
     cur = con.cursor("First")
     try:
+        print "Executing..."
+        print query
         cur.execute(query)
+        print cur.fetchone()
         #Now the result is loaded (supposedly)
     except Exception as e:
         print e.pgerror
@@ -27,8 +30,11 @@ def processOutput(con, query, process_batch, history_init=None, final_commit=Non
     """
     
     cur = lazyLoad(query,con)
+    print "cursor obtained"
     batch = cur.fetchmany(batchsize)
+    print "got first batch"
     history = history_init()
+    print "System initialized"
     while(batch!=[]):
         #Get a 'batchsize' number of entries from the DB
         history = process_batch(batch,history)
