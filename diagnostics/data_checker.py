@@ -103,21 +103,44 @@ class UMIDQuery():
     # -- -- Utilies end -- -- #    
     # -- -- Window Utilities Start -- -- #
 
-    def window_add(self,history, newnum):
-        newnum = float(newnum) #Convert to float
+    def window_add(self,window, newrow):
+        (drop_id, line_num , site_id ,
+         machine_id, ip, circuit_type ,
+         timestamp, watts, watt_hours ,
+         credit ) = newrow
+        #We are running the filter on 'watts'
+        newnum = float(watts) #Convert to float
+        """
         maxlen = history['window'].maxlen
         if history['window::count']<maxlen:
             history['window::count']+=1
             history['window::sum']+=newnum
             history['window::sumOfSquares']+=newnum**2
             history["window"].append(newnum)
+        """
+        maxlen = window["nums"].maxlen
+        if window["count"]<maxlen:
+            window["count"]+=1
+            window["sum"]+=newnum
+            window["sum_squares"]+=newnum**2
+            window["nums"].append(newnum)
+            window["rows"].append(newrow)
         else:
+            """
             removed = history['window'][0]
             history["window::sum"] = history["window::sum"] - removed + newnum
             history["window::sumOfSquares"] = (history["window::sumOfSquares"]
-                                               - removed**2 + newnum**2)
-            history["window"].append(newnum)
-        return history
+                                              - removed**2 + newnum**2)
+            """
+            removed = window["nums"][0]
+            window["sum"] = window ["sum"] -removed + newnum
+            window["sum_squares"] = (window["sum_squares"] - removed**2
+                                     +newnum**2)
+            
+            #history["window"].append(newnum)
+            window["nums"].append(newnum)
+            window["rows"].append(newrow)
+        return window
             
     def window_mean(self, window):
         return (float(window["sum"])
@@ -134,14 +157,16 @@ class UMIDQuery():
         var = (sumOfSquares - N*(mean**2))/float(N-1)
         return var**0.5
 
-    def window_refresh(self, history):
+    def window_refresh(self, window_size):
         # Refreshing contents of 'window' to zero
-        window = { "queue": deq(maxlen=window_size)
+        window = { "data" : deq(maxlen=window_size)
+                   "nums" : deq(maxlen=window_size)
                    "count": 0 ,
                    "sum"  : 0 ,
                    "sum_squares" : 0 }
         return window
-        
+
+            
     def history_init(self):
         history = {}
         window_size = 100
@@ -156,16 +181,13 @@ class UMIDQuery():
         """
         potential new design
         """
-        window = { "queue": deq(maxlen=window_size)
+        window = { "rows" : deq(maxlen=window_size)
+                   "nums": deq(maxlen=window_size)
                    "count": 0 ,
                    "sum"  : 0 ,
                    "sum_squares" : 0 }
 
         history["window"] = window
-        
-        history[window]
-        
-        
         history["linecount"] =0
         history["count"] = 0
         history["wattanomalies"]= 0
@@ -243,6 +265,55 @@ class UMIDQuery():
                           + "from_machine="+ str(from_machine)
                           +" "+ "to_machine="+ str(to_machine) + '\n')
         return text, history
+
+    def process_row_window_error(self, row, history):
+        window = history["window"]
+
+        #Check to see if the data_row has changed
+        if (history["prev_row"][3]!=machine_id or history["prev_row"][4]!=ip
+                    or history["prev_row"][2]!=site_id):
+            #In case of transition - refresh window
+            window = self.window_refresh()
+        window = self.window_add(window, row)
+        history["window"] = window
+        text = self.window_detect_anomaly(window)
+        return text, history
+
+    def window_detect_anomaly(self, window):
+        #Given a window: Detect whether the present element is anomalous
+        text = ""        
+        mean = self.window_mean(window)
+        var = self.window_var(window)
+        maxlen = window["rows"].maxlen
+        cur_row = window["rows"][maxlen/2]
+        cur_num = window["nums"][maxlen/2]
+
+        #Opening up the row
+        (
+            drop_id, line_num , site_id ,
+            machine_id, ip, circuit_type ,
+            timestamp, watts, watt_hours ,
+            credit
+
+        ) = cur_row
+        
+        #Perform some analysis on deque
+        # e.g.
+        limit = 1500
+        
+        if cur_num>mean+3*var:
+            # 3 Sigma Error
+            text = (site_id + "," + ip + "," + str(timestamp) + ","
+                    + self.3sigma_anomaly + ","
+                    + "value="+ str(from_machine)
+                    +" "+ "windowmean="+ str(to_machine) + '\n')
+        if cur_num>limit:
+            # Raw value error
+            text = (site_id + "," + ip + "," + str(timestamp) + ","
+                    + self.limit_anomaly + ","
+                    + "value="+ str(watts)
+                    +" "+ "limit="+ str(limit) + '\n')
+        return text
                             
     def process_batch(self, batch,history=None):
         text = ""
