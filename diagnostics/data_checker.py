@@ -329,7 +329,7 @@ class OutlierDetectionQuery():
         ) = row
         limit = self.anomaly_hard_limit
         text = ""
-        if cur_num>limit:
+        if watts>limit:
             # Raw value error
             text = (site_id + "," + ip + "," + str(timestamp) + ","
                     + self.limit_anomaly + ","
