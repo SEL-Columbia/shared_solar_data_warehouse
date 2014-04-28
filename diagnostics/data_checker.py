@@ -8,11 +8,6 @@ deq =  collections.deque
 
 #Script to find instances where the machine_id changes
 
-history = {}
-history["window"] = deq(maxlen=10)
-history["window::sum"] = 0
-history["window::sumOfSquares"] = 0
-history["window::count"] = 0
 
 def lazyLoad(query, con):
     #Setting up a namedcursor to enable lazy loading
@@ -53,7 +48,8 @@ headings = ['drop_id','line_num','site_id','machine_id','ip_addr','circuit_type'
 history["maxlines"] = 261014681
 Computed via SELECT count(*); on the database
 """
-class UMIDQuery():
+
+class OutlierDetectionQuery():
     """
     Naming conventions still need to be discussed.
     Wrapping them in this class so that the general names query, history_init, process_batch and final_commit
@@ -74,14 +70,39 @@ class UMIDQuery():
     query = "SELECT * from {0} ORDER BY site_id, ip_addr,time_stamp;"    
     resultsfile = "results.txt"
     statsfile = "stats.txt"
+
     watthours_anomaly = "OUTLIER_WATT_HOUR_DECREASE"
     machineswap_anomaly = "OUTLIER_MACHINE_SWAP"
+    three_sigma_anomaly = "OUTLIER_3SIGMA_EXCEEDED"
+    limit_anomaly = "OUTLIER_LIMIT_EXCEEDED"    
     table = 'raw_circuit_reading'
     testTable = "raw_circuit_reading_small_test"
     dbname = 'sharedsolar'
     active_query = query.format(table)
+    batch_size = 10000
+    description = ("A query object that allows users to chain multiple analytical steps into a single query for efficient data cleaning and outlier detection. ")
+    
+    process_row_functions = []
     # -- -- Utility Function --  -- #
+    def __init__(self):
 
+        #Initializing initial seed of functions
+        self.process_row_funtions = [
+            self.process_row_watt_reduction,
+            self.process_row_machineId_swap,
+            self.process_row_window_error
+        ]
+
+        return
+        
+    def setBatchSize(self,batchsize):
+        if type(batchsize) is int:
+            self.batch_size = batchsize
+        return
+        
+    def getBatchSize(self):
+        return self.batch_size
+            
     def setTest(self):
         self.active_query = query.format(self.table)
         return
@@ -102,44 +123,36 @@ class UMIDQuery():
         self.dbname = dbname
     # -- -- Utilies end -- -- #    
     # -- -- Window Utilities Start -- -- #
-
+    
     def window_add(self,window, newrow):
-        (drop_id, line_num , site_id ,
-         machine_id, ip, circuit_type ,
-         timestamp, watts, watt_hours ,
-         credit ) = newrow
+
+        (
+            drop_id, line_num , site_id ,
+            machine_id, ip, circuit_type ,
+            timestamp, watts, watt_hours ,
+            credit
+
+        ) = newrow
         #We are running the filter on 'watts'
         newnum = float(watts) #Convert to float
-        """
-        maxlen = history['window'].maxlen
-        if history['window::count']<maxlen:
-            history['window::count']+=1
-            history['window::sum']+=newnum
-            history['window::sumOfSquares']+=newnum**2
-            history["window"].append(newnum)
-        """
         maxlen = window["nums"].maxlen
         if window["count"]<maxlen:
+            
             window["count"]+=1
             window["sum"]+=newnum
             window["sum_squares"]+=newnum**2
             window["nums"].append(newnum)
             window["rows"].append(newrow)
+            
         else:
-            """
-            removed = history['window'][0]
-            history["window::sum"] = history["window::sum"] - removed + newnum
-            history["window::sumOfSquares"] = (history["window::sumOfSquares"]
-                                              - removed**2 + newnum**2)
-            """
+
             removed = window["nums"][0]
             window["sum"] = window ["sum"] -removed + newnum
-            window["sum_squares"] = (window["sum_squares"] - removed**2
-                                     +newnum**2)
-            
-            #history["window"].append(newnum)
+            window["sum_squares"] = ( window["sum_squares"]
+                                     - removed**2 + newnum**2)            
             window["nums"].append(newnum)
             window["rows"].append(newrow)
+            
         return window
             
     def window_mean(self, window):
@@ -159,13 +172,12 @@ class UMIDQuery():
 
     def window_refresh(self, window_size):
         # Refreshing contents of 'window' to zero
-        window = { "data" : deq(maxlen=window_size)
-                   "nums" : deq(maxlen=window_size)
+        window = { "data" : deq(maxlen=window_size),
+                   "nums" : deq(maxlen=window_size),
                    "count": 0 ,
                    "sum"  : 0 ,
                    "sum_squares" : 0 }
         return window
-
             
     def history_init(self):
         history = {}
@@ -173,41 +185,20 @@ class UMIDQuery():
         print("Initializing History")
 
         """
-        history["window"] = deq (maxlen=window_size) #Array initialized
-        history["window::count"] =0
-        history["window::sum"] = 0
-        history["window::sumOfSquares"] = 0
-        """
-        """
         potential new design
         """
-        window = { "rows" : deq(maxlen=window_size)
-                   "nums": deq(maxlen=window_size)
-                   "count": 0 ,
-                   "sum"  : 0 ,
-                   "sum_squares" : 0 }
-
+        window = self.window_refresh(window_size)
         history["window"] = window
         history["linecount"] =0
         history["count"] = 0
         history["wattanomalies"]= 0
         history["prev"] = -float("inf")
         history["prevc"] = float("inf")
-
         history["prev_row"] = [None, None, None, None, None, None, None, -float("inf"), float("inf")]
 
         """
         The 'prev_row' key stores an entire row of values in format
         headings = ['drop_id','line_num','site_id','machine_id','ip_addr','circuit_type','time_stamp','watts','watt_hours','credit']
-        """
-
-        """
-        Experimental idea - replace the history list with
-        a dict for comprehensibility? Might have to be wrapped in a class
-        for easy initialization from a row of data
-        history["prev_row"] = collections.defaultdict(int)
-        history["watt_hours"] = -float("inf")
-        history["credit"] = float("inf")
         """
         
         history["thousand"] = ['Initialized']
@@ -218,7 +209,18 @@ class UMIDQuery():
         """
         open(self.resultsfile,'w').close()
         return history
-	
+
+
+    def getProcessRowFunctions(self):
+        return self.process_row_functions
+
+    def addProcessRowFunction(self, function):
+        self.process_row_functions += [function]
+        return 
+
+    def setProcessRowFunctions(self, newListOfFunctions):
+        process_row_function = newListOfFunctions
+
     def process_row_watt_reduction(self, row, history):
         text = ""
         (drop_id, line_num , site_id ,
@@ -268,7 +270,6 @@ class UMIDQuery():
 
     def process_row_window_error(self, row, history):
         window = history["window"]
-
         #Check to see if the data_row has changed
         if (history["prev_row"][3]!=machine_id or history["prev_row"][4]!=ip
                     or history["prev_row"][2]!=site_id):
@@ -279,6 +280,9 @@ class UMIDQuery():
         text = self.window_detect_anomaly(window)
         return text, history
 
+    window_anomaly_hard_limit = 1500
+    window_anomaly_slack = 100
+    
     def window_detect_anomaly(self, window):
         #Given a window: Detect whether the present element is anomalous
         text = ""        
@@ -294,19 +298,20 @@ class UMIDQuery():
             machine_id, ip, circuit_type ,
             timestamp, watts, watt_hours ,
             credit
-
+            
         ) = cur_row
         
         #Perform some analysis on deque
         # e.g.
         limit = 1500
-        
-        if cur_num>mean+3*var:
+        slack = 100
+        if cur_num>mean+3*var+slack:
             # 3 Sigma Error
             text = (site_id + "," + ip + "," + str(timestamp) + ","
-                    + self.3sigma_anomaly + ","
+                    + self.three_sigma_anomaly + ","
                     + "value="+ str(from_machine)
                     +" "+ "windowmean="+ str(to_machine) + '\n')
+            
         if cur_num>limit:
             # Raw value error
             text = (site_id + "," + ip + "," + str(timestamp) + ","
@@ -315,28 +320,32 @@ class UMIDQuery():
                     +" "+ "limit="+ str(limit) + '\n')
         return text
                             
-    def process_batch(self, batch,history=None):
+    def process_batch(self, batch, history=None):
         text = ""
-        for row in batch:
-                #print len(row)
-                if len(row)==10:
-                    history["linecount"] +=1
-
-                    """
-                    Key for the mappings of different parameters in each row of the Database
-
+        """Key for the mappings of different parameters in each row of the Database
                     drop id = row[1] ;      site_id = row[2]
                     machine_id = row[3] ;   ip = row[4]
                     circuit_type = row[5];  timestamp = row[6]
                     watts = row[7];         watt_hours = row[8]
                     credit = row[9]
-                    """
+        """
+        for row in batch:
+                if len(row)==10:
+                    history["linecount"] +=1
 
                     #This needs to be put into a for loop
+
+                    for process_row_function in self.ProcessRowFunctions():
+                        message, history = process_row_function(row,history)
+                        text += message
+
+                    """
                     temptext, history = self.process_row_watt_reduction(row, history)
                     text+=temptext
                     temptext, history = self.process_row_machineId_swap(row, history)
                     text+=temptext
+                    temptext, history = self.process_row_window_error(row,history)
+                    """
                     
                     history["prev_row"] = row
                     """Indicator boolean - indicates whether machineID has been
@@ -400,7 +409,7 @@ class UMIDQuery():
     def run(self):
         con = psql.connect(dbname=self.dbname,
                  user="sharedsolar")
-        processOutput(con, self.active_query, self.process_batch, self.history_init, self.final_commit)
+        processOutput(con, self.active_query, self.process_batch, self.history_init, self.final_commit, self.batch_size)
         con.close()
 
 """
@@ -416,8 +425,8 @@ for i in range(1000):
 
 def mainrun():
     print "running main"
-    obj =  UMIDQuery()
-    obj.run()
+    odquery =  OutlierDetectionQuery()
+    odquery.run()
     return
 
 mainrun()
