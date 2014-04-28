@@ -71,7 +71,7 @@ class OutlierDetectionQuery():
     statsfile = "stats.txt"
     watthours_anomaly = "OUTLIER_WATT_HOUR_DECREASE"
     machineswap_anomaly = "OUTLIER_MACHINE_SWAP"
-    three_sigma_anomaly = "OUTLIER_3SIGMA_EXCEEDED"
+    three_sigma_anomaly = "OUTLIER_ROLLING_THREE_SIGMA"
     limit_anomaly = "OUTLIER_LIMIT_EXCEEDED"    
     table = 'raw_circuit_reading'
     testTable = "raw_circuit_reading_small_test"
@@ -91,7 +91,8 @@ class OutlierDetectionQuery():
         self.process_row_functions += [
             self.process_row_watt_reduction,
             self.process_row_machineId_swap,
-            self.process_row_window_error
+            self.process_row_window_error,
+            self.process_row_hard_limit
         ]
 
         return
@@ -295,7 +296,6 @@ class OutlierDetectionQuery():
                           + '\n')
 
         return text, history
-
     def process_row_window_error(self, row, history):
 
         (
@@ -317,8 +317,25 @@ class OutlierDetectionQuery():
         text = self.window_detect_anomaly(window)
         return text, history
 
-    window_anomaly_hard_limit = 1500
+    anomaly_hard_limit = 1500
     window_anomaly_slack = 100
+    
+    def process_row_hard_limit(self, row,history):
+        (
+            drop_id, line_num , site_id ,
+            machine_id, ip, circuit_type ,
+            timestamp, watts, watt_hours , credit 
+
+        ) = row
+        limit = self.anomaly_hard_limit
+        text = ""
+        if cur_num>limit:
+            # Raw value error
+            text = (site_id + "," + ip + "," + str(timestamp) + ","
+                    + self.limit_anomaly + ","
+                    + "value="+ str(watts)
+                    +" "+ "limit="+ str(limit) + '\n')
+        return text
     
     def window_detect_anomaly(self, window):
         #Given a window: Detect whether the present element is anomalous
@@ -352,13 +369,14 @@ class OutlierDetectionQuery():
                     + self.three_sigma_anomaly + ","
                     + "value="+ str(watts)
                     +" "+ "windowmean="+ str(mean) + '\n')
-            
+        """
         if cur_num>limit:
             # Raw value error
             text = (site_id + "," + ip + "," + str(timestamp) + ","
                     + self.limit_anomaly + ","
                     + "value="+ str(watts)
                     +" "+ "limit="+ str(limit) + '\n')
+        """
         return text
                             
     def process_batch(self, batch, history=None):
