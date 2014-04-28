@@ -1,4 +1,4 @@
-#import psycopg2 as psql
+import psycopg2 as psql
 import collections
 import cPickle as pickle
 
@@ -19,7 +19,6 @@ def lazyLoad(query, con):
         print e.pgerror
     print "Lazy loading Cursor initialized"
     return cur
-
 def processOutput(con, query, process_batch, history_init=None, final_commit=None, batchsize=10000):
     """
     cur is a namedcursor to the output- batchsize is a tuning parameter to determine how many lines
@@ -70,7 +69,6 @@ class OutlierDetectionQuery():
     query = "SELECT * from {0} ORDER BY site_id, ip_addr,time_stamp;"    
     resultsfile = "results.txt"
     statsfile = "stats.txt"
-
     watthours_anomaly = "OUTLIER_WATT_HOUR_DECREASE"
     machineswap_anomaly = "OUTLIER_MACHINE_SWAP"
     three_sigma_anomaly = "OUTLIER_3SIGMA_EXCEEDED"
@@ -80,14 +78,17 @@ class OutlierDetectionQuery():
     dbname = 'sharedsolar'
     active_query = query.format(table)
     batch_size = 10000
-    description = ("A query object that allows users to chain multiple analytical steps into a single query for efficient data cleaning and outlier detection. ")
-    
+    description = ("A query object that allows users to chain multiple analytical steps into a single query for efficient data cleaning and outlier detection.")
     process_row_functions = []
+
+
     # -- -- Utility Function --  -- #
+
+
     def __init__(self):
 
         #Initializing initial seed of functions
-        self.process_row_funtions = [
+        self.process_row_functions += [
             self.process_row_watt_reduction,
             self.process_row_machineId_swap,
             self.process_row_window_error
@@ -123,6 +124,17 @@ class OutlierDetectionQuery():
         self.dbname = dbname
     # -- -- Utilies end -- -- #    
     # -- -- Window Utilities Start -- -- #
+
+    def getProcessFunctions(self):
+        return self.process_row_functions
+
+    def addProcessFunction(self, function):
+        self.process_row_functions += [function]
+        return 
+
+    def setProcessFunctions(self, newListOfFunctions):
+        process_row_function = newListOfFunctions
+        return 
     
     def window_add(self,window, newrow):
 
@@ -167,12 +179,17 @@ class OutlierDetectionQuery():
         #sumOfSquares = history["window::sumOfSquares"]
         sumOfSquares = window["sum_squares"]
         mean = self.window_mean(window)
+        
+       
         var = (sumOfSquares - N*(mean**2))/float(N-1)
+        if var < 0:
+            #print "var less than zero", var
+            return 0
         return var**0.5
 
     def window_refresh(self, window_size):
         # Refreshing contents of 'window' to zero
-        window = { "data" : deq(maxlen=window_size),
+        window = { "rows" : deq(maxlen=window_size),
                    "nums" : deq(maxlen=window_size),
                    "count": 0 ,
                    "sum"  : 0 ,
@@ -181,13 +198,13 @@ class OutlierDetectionQuery():
             
     def history_init(self):
         history = {}
-        window_size = 100
+        history["window_size"] = 100
         print("Initializing History")
 
         """
         potential new design
         """
-        window = self.window_refresh(window_size)
+        window = self.window_refresh(history["window_size"])
         history["window"] = window
         history["linecount"] =0
         history["count"] = 0
@@ -210,7 +227,6 @@ class OutlierDetectionQuery():
         open(self.resultsfile,'w').close()
         return history
 
-
     def getProcessRowFunctions(self):
         return self.process_row_functions
 
@@ -220,12 +236,17 @@ class OutlierDetectionQuery():
 
     def setProcessRowFunctions(self, newListOfFunctions):
         process_row_function = newListOfFunctions
+        return 
 
     def process_row_watt_reduction(self, row, history):
         text = ""
-        (drop_id, line_num , site_id ,
-         machine_id, ip, circuit_type ,
-         timestamp, watts, watt_hours , credit ) = row
+        (
+            drop_id, line_num , site_id ,
+            machine_id, ip, circuit_type ,
+            timestamp, watts, watt_hours , credit 
+
+        ) = row
+        
         if history["linecount"]%1000000==0:
             print (history["linecount"]/1000000,
                                     "Million lines parsed")
@@ -246,9 +267,14 @@ class OutlierDetectionQuery():
 
     def process_row_machineId_swap (self, row, history):
         text = "" 
-        (drop_id, line_num , site_id ,
-         machine_id, ip, circuit_type ,
-         timestamp, watts, watt_hours , credit ) = row
+
+        (
+            drop_id, line_num , site_id ,
+            machine_id, ip, circuit_type ,
+            timestamp, watts, watt_hours , credit 
+
+        ) = row
+
         inDic = False
         for tup in history["dic"][( site_id, ip )]:
             if machine_id == tup[0]:
@@ -265,16 +291,27 @@ class OutlierDetectionQuery():
                 text +=  (site_id + "," + ip + "," + str(timestamp) + ","
                           + self.machineswap_anomaly + ","
                           + "from_machine="+ str(from_machine)
-                          +" "+ "to_machine="+ str(to_machine) + '\n')
+                          +" "+ "to_machine="+ str(to_machine) 
+                          + '\n')
+
         return text, history
 
     def process_row_window_error(self, row, history):
+
+        (
+
+            drop_id, line_num , site_id ,
+            machine_id, ip, circuit_type ,
+            timestamp, watts, watt_hours , credit 
+
+        ) = row
+
         window = history["window"]
         #Check to see if the data_row has changed
         if (history["prev_row"][3]!=machine_id or history["prev_row"][4]!=ip
                     or history["prev_row"][2]!=site_id):
             #In case of transition - refresh window
-            window = self.window_refresh()
+            window = self.window_refresh(history["window_size"])
         window = self.window_add(window, row)
         history["window"] = window
         text = self.window_detect_anomaly(window)
@@ -288,7 +325,11 @@ class OutlierDetectionQuery():
         text = ""        
         mean = self.window_mean(window)
         var = self.window_var(window)
-        maxlen = window["rows"].maxlen
+        
+        maxlen = len(window["rows"])
+        
+        #print maxlen/2
+        #print len(window["rows"])
         cur_row = window["rows"][maxlen/2]
         cur_num = window["nums"][maxlen/2]
 
@@ -309,8 +350,8 @@ class OutlierDetectionQuery():
             # 3 Sigma Error
             text = (site_id + "," + ip + "," + str(timestamp) + ","
                     + self.three_sigma_anomaly + ","
-                    + "value="+ str(from_machine)
-                    +" "+ "windowmean="+ str(to_machine) + '\n')
+                    + "value="+ str(watts)
+                    +" "+ "windowmean="+ str(mean) + '\n')
             
         if cur_num>limit:
             # Raw value error
@@ -335,7 +376,7 @@ class OutlierDetectionQuery():
 
                     #This needs to be put into a for loop
 
-                    for process_row_function in self.ProcessRowFunctions():
+                    for process_row_function in self.getProcessFunctions():
                         message, history = process_row_function(row,history)
                         text += message
 
@@ -381,7 +422,7 @@ class OutlierDetectionQuery():
         print "Lazy loading Cursor initialized"
         return cur
 
-    def processOutput(con, query, process_batch, history_init=None, final_commit=None, batchsize=10000):
+    def processOutput(self, con):
         """
     cur is a namedcursor to the output- batchsize is a tuning parameter to determine how many lines
     are to be read from the table in one operation.
@@ -389,10 +430,17 @@ class OutlierDetectionQuery():
     "batchsize" can be used as a tuning parameter - increasing it means storing a larger chunk of the
     data in memory, which in turn means that more
         """
+        query = self.active_query
+        process_batch = self.process_batch
+        history_init = self.history_init
+        final_commit = self.final_commit
+        batchsize = self.batch_size
+
         print "Process output activated"
         cur = self.lazyLoad(query,con)
         batch = cur.fetchmany(batchsize)
         history = self.history_init()
+        print "History Initialized"
         while(batch!=[]):
             #Get a 'batchsize' number of entries from the DB
             history = self.process_batch(batch,history)
@@ -409,19 +457,8 @@ class OutlierDetectionQuery():
     def run(self):
         con = psql.connect(dbname=self.dbname,
                  user="sharedsolar")
-        processOutput(con, self.active_query, self.process_batch, self.history_init, self.final_commit, self.batch_size)
+        self.processOutput(con)
         con.close()
-
-"""
-print "Running fun stuff"
-u = UMIDQuery()
-for i in range(1000):
- 	history = u.window_add(history,i)
- 	print "window:", history["window"]
- 	print "avg:", u.window_mean(history)
- 	print "var:", u.window_var(history)
-"""
-
 
 def mainrun():
     print "running main"
