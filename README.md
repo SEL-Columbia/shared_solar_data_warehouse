@@ -73,21 +73,19 @@ SharedSolar "raw" usage data consists of power meter data (i.e. watts, watt_hour
 
 The basic workflow for loading data is:
 
-> SharedSolar Raw Data Drop (individual circuit hour log files)  
-> v  
-> Assemble into CSV (via python denormalize_to_csv.py script)  
-> v  
-> Load into Postgresql database (via bulk load "copy")  
-> v  
-> De-duplicate and clean data (via sql scripts)  
-> v  
-> Aggregate data into minutely, hourly and daily resolution tables (via sql)  
+1. SharedSolar Raw Data Drop (individual circuit hour log files)  
+2. Assemble into CSV (via python denormalize_to_csv.py script)  
+3. Load into Postgresql database (via bulk load "copy")  
+4. De-duplicate and clean data (via sql scripts)  
+5. Aggregate data into minutely, hourly and daily resolution tables (via sql)  
 
 This workflow is encapsulated by the processor/load_script.sh which assumes the following folder structure in addition to what is in this repository:
 
-> shared_solar_data_warehouse (THIS repo...i.e. the PROJECT_DIR)  
-> $PROJECT_DIR\load (this is where the SharedSolar raw data drops to be loaded go)  
-> $PROJECT_DIR\processed (this is where the files that have been processed go)  
+```
+PROJECT_DIR=shared_solar_data_warehouse # (THIS repo...i.e. the PROJECT_DIR)  
+$PROJECT_DIR\load # (this is where the SharedSolar raw data drops to be loaded go)  
+$PROJECT_DIR\processed # (this is where the files that have been processed go)  
+```
 
 The SharedSolar raw data drop directory needs to conform to the following directory structure/naming convention (the top level drop directory name refers to the date of the drop):
 
