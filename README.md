@@ -110,6 +110,19 @@ Once loaded, you can query the data either from the cleaned full resolution tabl
 Some sample queries:
 
 ```
+-- It's fastest to get an overview against the circuit_reading_daily table, so start with that...
+
+-- get total number of *daily* records per month (gives overall timeframe of data and the gaps)
+select count(*), date_trunc('month', time_stamp) as month from circuit_reading_daily group by date_trunc('month', time_stamp) order by month;
+
+-- get the max/min daily timestamp for each circuit
+select max(time_stamp), min(time_stamp), site_id, ip_addr from circuit_reading_daily group by site_id, ip_addr;
+
+-- get the total number of *daily* records for a site_id/ip_addr (circuit) per month (more detailed sense of gaps)
+select count(*), site_id, ip_addr, date_trunc('month', time_stamp) as month from circuit_readi by site_id, ip_addr, date_trunc('month', time_stamp) order by month;
+
+-- Then you can drill into some more specific ranges of data in the circuit_reading_hourly or circuit_reading_minutely tables
+
 -- get the number of minutely records, sum up the watt_hours consumed for all minutes and find the max/min of credit and time_stamp by site_id/ip_addr (circuit) combination
 select site_id, ip_addr, count(*) num_records, sum(watt_hours_delta) sum_watt_hours, max(max_credit), min(min_credit), min(time_stamp), max(time_stamp) from circuit_reading_hourly group by site_id, ip_addr;
 
