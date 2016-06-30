@@ -107,7 +107,8 @@ All files originally in the load directory should be moved to the processed dire
 
 Once loaded, you can query the data either from the cleaned full resolution table, circuit_reading, or any of the aggregated resolution tables, circuit_reading_minutely, circuit_reading_hourly and circuit_reading_daily.
 
-Some sample queries:
+Sample Queries
+--------------
 
 ```
 -- It's fastest to get an overview against the circuit_reading_daily table, so start with that...
